@@ -25,12 +25,12 @@ bool ATLASPixRawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::S
         EUDAQ_ERROR("Cannot read TelescopeFrame");
 
 
-    eudaq::StandardPlane plane(block_n, "MuPixLike_DUT", "MuPixLike_DUT");
-    plane.SetSizeZS(128,400,tf->num_hits());
+    eudaq::StandardPlane plane(81, "MuPixLike_DUT", "MuPixLike_DUT");
+    plane.SetSizeZS(400,25,tf->num_hits());
     for(uint i =0; i < tf->num_hits();++i)
     {
         RawHit h = tf->get_hit(i,66);
-        plane.SetPixel(i,h.column(),h.row(),h.timestamp_raw());
+        plane.SetPixel(i,h.row(),h.column(),h.timestamp_raw());
     }
     d2->AddPlane(plane);
   }
