@@ -388,7 +388,7 @@ uint64_t OfflineReading(eudaq::Monitor *mon, eudaq::FileReaderSP reader, uint32_
       break;
     }
     uint32_t ev_n = ev->GetEventN();
-    if(ev_n>=ev_n_l & ev_n<=100000){//ev_n_h){
+    if(ev_n>=ev_n_l & ev_n<=400000){//ev_n_h){
       //mon->DoReceive(ev);
         // juhuuu
         sicher++;
