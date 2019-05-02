@@ -49,512 +49,517 @@
 using namespace std;
 
 RootMonitor::RootMonitor(const std::string & runcontrol,
-             int /*x*/, int /*y*/, int /*w*/, int /*h*/,
-             const std::string & conffile, const std::string & monname, const string & outfile)
-  :eudaq::Monitor(monname, runcontrol), _planesInitialized(false), onlinemon(NULL), m_out(outfile){
-  onlinemon = new OnlineMonWindow(gClient->GetRoot(),800,600);
+                         int /*x*/, int /*y*/, int /*w*/, int /*h*/,
+                         const std::string & conffile, const std::string & monname, const string & outfile)
+    :eudaq::Monitor(monname, runcontrol), _planesInitialized(false), onlinemon(NULL), m_out(outfile){
+    onlinemon = new OnlineMonWindow(gClient->GetRoot(),800,600);
 
-  if (onlinemon==NULL){
-    std::cerr<< "Error Allocationg OnlineMonWindow"<<endl;
-    exit(-1);
-  }
-
-  m_plane_c = 0;
-  m_ev_rec_n = 0;
-  _dataTree = new TTree();
-  hmCollection = new HitmapCollection();
-  corrCollection = new CorrelationCollection();
-  MonitorPerformanceCollection *monCollection =new MonitorPerformanceCollection();
-  eudaqCollection = new EUDAQMonitorCollection();
-  paraCollection = new ParaMonitorCollection();
-
-  // put collections into the vector
-  _colls.push_back(hmCollection);
-  //_colls.push_back(corrCollection);
-  //_colls.push_back(monCollection);
-  //_colls.push_back(eudaqCollection);
-  //_colls.push_back(paraCollection);
-
-  // set the root Monitor
-  hmCollection->setRootMonitor(this);
-  corrCollection->setRootMonitor(this);
-  monCollection->setRootMonitor(this);
-  eudaqCollection->setRootMonitor(this);
-  paraCollection->setRootMonitor(this);
-
-  onlinemon->setCollections(_colls);
-
-  //initialize with default configuration
-  mon_configdata.SetDefaults();
-  configfilename.assign(conffile);
-
-  if (configfilename.length()>1){
-    mon_configdata.setConfigurationFileName(configfilename);
-    if (mon_configdata.ReadConfigurationFile()!=0){
-      // reset defaults, as Config file is bad
-      cerr <<" As Config file can't be found, re-applying hardcoded defaults"<<endl;
-      mon_configdata.SetDefaults();
+    if (onlinemon==NULL){
+        std::cerr<< "Error Allocationg OnlineMonWindow"<<endl;
+        exit(-1);
     }
-  }
-  // print the configuration
-  mon_configdata.PrintConfiguration();
 
-  //set a few defaults
-  snapshotdir=mon_configdata.getSnapShotDir();
-  previous_event_analysis_time=0;
-  previous_event_fill_time=0;
-  previous_event_clustering_time=0;
-  previous_event_correlation_time=0;
+    m_plane_c = 0;
+    m_ev_rec_n = 0;
+    _dataTree = new TTree();
+    hmCollection = new HitmapCollection();
+    corrCollection = new CorrelationCollection();
+    MonitorPerformanceCollection *monCollection =new MonitorPerformanceCollection();
+    eudaqCollection = new EUDAQMonitorCollection();
+    paraCollection = new ParaMonitorCollection();
 
-  onlinemon->SetOnlineMon(this);    
+    // put collections into the vector
+    _colls.push_back(hmCollection);
+    //_colls.push_back(corrCollection);
+    //_colls.push_back(monCollection);
+    //_colls.push_back(eudaqCollection);
+    //_colls.push_back(paraCollection);
+
+    // set the root Monitor
+    hmCollection->setRootMonitor(this);
+    corrCollection->setRootMonitor(this);
+    monCollection->setRootMonitor(this);
+    eudaqCollection->setRootMonitor(this);
+    paraCollection->setRootMonitor(this);
+
+    onlinemon->setCollections(_colls);
+
+    //initialize with default configuration
+    mon_configdata.SetDefaults();
+    configfilename.assign(conffile);
+
+    if (configfilename.length()>1){
+        mon_configdata.setConfigurationFileName(configfilename);
+        if (mon_configdata.ReadConfigurationFile()!=0){
+            // reset defaults, as Config file is bad
+            cerr <<" As Config file can't be found, re-applying hardcoded defaults"<<endl;
+            mon_configdata.SetDefaults();
+        }
+    }
+    // print the configuration
+    mon_configdata.PrintConfiguration();
+
+    //set a few defaults
+    snapshotdir=mon_configdata.getSnapShotDir();
+    previous_event_analysis_time=0;
+    previous_event_fill_time=0;
+    previous_event_clustering_time=0;
+    previous_event_correlation_time=0;
+
+    onlinemon->SetOnlineMon(this);
 
 }
 
 RootMonitor::~RootMonitor(){
-  gApplication->Terminate();
+    gApplication->Terminate();
 }
 
 OnlineMonWindow* RootMonitor::getOnlineMon() const {
-  return onlinemon;
+    return onlinemon;
 }
 
 void RootMonitor::setWriteRoot(const bool write) {
-  _writeRoot = write;
+    _writeRoot = write;
 }
 
 void RootMonitor::setCorr_width(const unsigned c_w) {
-  corrCollection->setWindowWidthForCorrelation(c_w);
+    corrCollection->setWindowWidthForCorrelation(c_w);
 }
 void RootMonitor::setCorr_planes(const unsigned c_p) {
-  corrCollection->setPlanesNumberForCorrelation(c_p);
+    corrCollection->setPlanesNumberForCorrelation(c_p);
 }
 
 void RootMonitor::setReduce(const unsigned int red) {
-  onlinemon->setReduce(red);
-  for (unsigned int i = 0 ; i < _colls.size(); ++i)
-  {
-    _colls.at(i)->setReduce(red);
-  }
+    onlinemon->setReduce(red);
+    for (unsigned int i = 0 ; i < _colls.size(); ++i)
+    {
+        _colls.at(i)->setReduce(red);
+    }
 }
 
 void RootMonitor::setUseTrack_corr(const bool t_c) {
-  useTrackCorrelator = t_c;
+    useTrackCorrelator = t_c;
 }
 
 bool RootMonitor::getUseTrack_corr() const {
-  return useTrackCorrelator;
+    return useTrackCorrelator;
 }
 
 void RootMonitor::setTracksPerEvent(const unsigned int tracks) {
-  tracksPerEvent = tracks;
+    tracksPerEvent = tracks;
 }
 
 unsigned int RootMonitor::getTracksPerEvent() const {
-  return tracksPerEvent;
+    return tracksPerEvent;
 }
 
 void RootMonitor::DoConfigure(){
-  auto &param = *GetConfiguration();
-  std::cout << "Configure: " << param.Name() << std::endl;
+    auto &param = *GetConfiguration();
+    std::cout << "Configure: " << param.Name() << std::endl;
 }
 
 void RootMonitor::DoTerminate(){
-  gApplication->Terminate();
+    gApplication->Terminate();
 }  
 
 void RootMonitor::DoReceive(eudaq::EventSP evsp) {
-  if(evsp->GetEventN() > 10 && evsp->GetEventN() % onlinemon->getReduce() != 0){
-    return;
-  }
-  
-  auto stdev = std::dynamic_pointer_cast<eudaq::StandardEvent>(evsp);
-  if(!stdev){
-    stdev = eudaq::StandardEvent::MakeShared();
-    eudaq::StdEventConverter::Convert(evsp, stdev, nullptr); //no conf
-  }
-  
-  uint32_t ev_plane_c = stdev->NumPlanes();
-  if(m_ev_rec_n < 10){
-    m_ev_rec_n ++;
-    if(ev_plane_c > m_plane_c){
-      m_plane_c = ev_plane_c;
+    if(evsp->GetEventN() > 10 && evsp->GetEventN() % onlinemon->getReduce() != 0){
+        return;
     }
-    return;
-  }
 
-  if(ev_plane_c != m_plane_c){
-    std::cout<< "Event #"<< evsp->GetEventN()<< " has "<<ev_plane_c<<" plane(s), while we expect "<< m_plane_c <<" plane(s).  (Event is skipped)" <<std::endl;
-    return;
-  }
-    
-  my_event_processing_time.Start(true);
+    auto stdev = std::dynamic_pointer_cast<eudaq::StandardEvent>(evsp);
+    if(!stdev){
+        stdev = eudaq::StandardEvent::MakeShared();
+        eudaq::StdEventConverter::Convert(evsp, stdev, nullptr); //no conf
+    }
 
-  uint32_t num = stdev->NumPlanes();
-
-  SimpleStandardEvent simpEv;
-  // store the processing time of the previous EVENT, as we can't track this during the  processing
-  simpEv.setMonitor_eventanalysistime(previous_event_analysis_time);
-  simpEv.setMonitor_eventfilltime(previous_event_fill_time);
-  simpEv.setMonitor_eventclusteringtime(previous_event_clustering_time);
-  simpEv.setMonitor_eventcorrelationtime(previous_event_correlation_time);
-  // add some info into the simple event header
-  simpEv.setEvent_number(stdev->GetEventNumber());
-  simpEv.setEvent_timestamp(stdev->GetTimestampBegin());
-    
-  for (unsigned int i = 0; i < num;i++){
-    const eudaq::StandardPlane & plane = stdev->GetPlane(i);
-    
-    string sensorname;
-    if ((plane.Type() == std::string("DEPFET")) &&(plane.Sensor().length()==0)){ // FIXME ugly hack for the DEPFET
-      sensorname=plane.Type();
-    }
-    else{
-      sensorname=plane.Sensor();
-    }
-    // DEAL with Fortis ...
-    if (strcmp(plane.Sensor().c_str(), "FORTIS") == 0 ){
-      continue;
-    }
-    SimpleStandardPlane simpPlane(sensorname,plane.ID(),plane.XSize(),plane.YSize(),&mon_configdata);
-    for (unsigned int lvl1 = 0; lvl1 < plane.NumFrames(); lvl1++){
-      for (unsigned int index = 0; index < plane.HitPixels(lvl1);index++){
-        SimpleStandardHit hit((int)plane.GetX(index,lvl1),(int)plane.GetY(index,lvl1));
-        hit.setTOT((int)plane.GetPixel(index,lvl1)); //this stores the analog information if existent, else it stores 1
-        hit.setLVL1(lvl1);
-          
-        if (simpPlane.getAnalogPixelType()){ //this is analog pixel, apply threshold
-          //this should be moved into converter
-          if (simpPlane.is_DEPFET){
-            if ((hit.getTOT()< -20) || (hit.getTOT()>120)){
-              continue;
-            }
-          }
-          if (simpPlane.is_EXPLORER){
-            if (lvl1!=0) continue;
-            hit.setTOT((int)plane.GetPixel(index));
-            if (hit.getTOT() < 20){
-              continue;
-            }
-          }
-          simpPlane.addHit(hit);
+    uint32_t ev_plane_c = stdev->NumPlanes();
+    if(m_ev_rec_n < 10){
+        m_ev_rec_n ++;
+        if(ev_plane_c > m_plane_c){
+            m_plane_c = ev_plane_c;
         }
-        else{ //purely digital pixel
-          simpPlane.addHit(hit);
-        }          
-      }
+        return;
     }
-    simpEv.addPlane(simpPlane);
-  }
-  my_event_inner_operations_time.Start(true);
-  simpEv.doClustering();
-  my_event_inner_operations_time.Stop();
-  previous_event_clustering_time = my_event_inner_operations_time.RealTime();
 
-  if(!_planesInitialized){
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      _planesInitialized = true;
-  }
+    if(ev_plane_c != m_plane_c){
+        std::cout<< "Event #"<< evsp->GetEventN()<< " has "<<ev_plane_c<<" plane(s), while we expect "<< m_plane_c <<" plane(s).  (Event is skipped)" <<std::endl;
+        return;
+    }
+    
+    my_event_processing_time.Start(true);
 
-  //stop the Stop watch
-  my_event_processing_time.Stop();
-  previous_event_analysis_time=my_event_processing_time.RealTime();
-  //Filling
-  my_event_processing_time.Start(true); //start the stopwatch again
-  for (unsigned int i = 0 ; i < _colls.size(); ++i)
+    uint32_t num = stdev->NumPlanes();
+
+    SimpleStandardEvent simpEv;
+    // store the processing time of the previous EVENT, as we can't track this during the  processing
+    simpEv.setMonitor_eventanalysistime(previous_event_analysis_time);
+    simpEv.setMonitor_eventfilltime(previous_event_fill_time);
+    simpEv.setMonitor_eventclusteringtime(previous_event_clustering_time);
+    simpEv.setMonitor_eventcorrelationtime(previous_event_correlation_time);
+    // add some info into the simple event header
+    simpEv.setEvent_number(stdev->GetEventNumber());
+    simpEv.setEvent_timestamp(stdev->GetTimestampBegin());
+    
+    for (unsigned int i = 0; i < num;i++){
+        const eudaq::StandardPlane & plane = stdev->GetPlane(i);
+
+        string sensorname;
+        if ((plane.Type() == std::string("DEPFET")) &&(plane.Sensor().length()==0)){ // FIXME ugly hack for the DEPFET
+            sensorname=plane.Type();
+        }
+        else{
+            sensorname=plane.Sensor();
+        }
+        // DEAL with Fortis ...
+        if (strcmp(plane.Sensor().c_str(), "FORTIS") == 0 ){
+            continue;
+        }
+        SimpleStandardPlane simpPlane(sensorname,plane.ID(),plane.XSize(),plane.YSize(),&mon_configdata);
+        for (unsigned int lvl1 = 0; lvl1 < plane.NumFrames(); lvl1++){
+            for (unsigned int index = 0; index < plane.HitPixels(lvl1);index++){
+                SimpleStandardHit hit((int)plane.GetX(index,lvl1),(int)plane.GetY(index,lvl1));
+                hit.setTOT((int)plane.GetPixel(index,lvl1)); //this stores the analog information if existent, else it stores 1
+                hit.setLVL1(lvl1);
+
+                if (simpPlane.getAnalogPixelType()){ //this is analog pixel, apply threshold
+                    //this should be moved into converter
+                    if (simpPlane.is_DEPFET){
+                        if ((hit.getTOT()< -20) || (hit.getTOT()>120)){
+                            continue;
+                        }
+                    }
+                    if (simpPlane.is_EXPLORER){
+                        if (lvl1!=0) continue;
+                        hit.setTOT((int)plane.GetPixel(index));
+                        if (hit.getTOT() < 20){
+                            continue;
+                        }
+                    }
+                    simpPlane.addHit(hit);
+                }
+                else{ //purely digital pixel
+                    simpPlane.addHit(hit);
+                }
+            }
+        }
+        simpEv.addPlane(simpPlane);
+    }
+    my_event_inner_operations_time.Start(true);
+    simpEv.doClustering();
+    my_event_inner_operations_time.Stop();
+    previous_event_clustering_time = my_event_inner_operations_time.RealTime();
+
+    if(!_planesInitialized){
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        _planesInitialized = true;
+    }
+
+    //stop the Stop watch
+    my_event_processing_time.Stop();
+    previous_event_analysis_time=my_event_processing_time.RealTime();
+    //Filling
+    my_event_processing_time.Start(true); //start the stopwatch again
+    for (unsigned int i = 0 ; i < _colls.size(); ++i)
     {
-      if (_colls.at(i) == corrCollection)
+        if (_colls.at(i) == corrCollection)
         {
-          my_event_inner_operations_time.Start(true);
-          if (getUseTrack_corr() == true)
+            my_event_inner_operations_time.Start(true);
+            if (getUseTrack_corr() == true)
             {
-              tracksPerEvent = corrCollection->FillWithTracks(simpEv);
-              if (eudaqCollection->getEUDAQMonitorHistos() != NULL) //workaround because Correlation Collection is before EUDAQ Mon collection
-                eudaqCollection->getEUDAQMonitorHistos()->Fill(simpEv.getEvent_number(), tracksPerEvent);
+                tracksPerEvent = corrCollection->FillWithTracks(simpEv);
+                if (eudaqCollection->getEUDAQMonitorHistos() != NULL) //workaround because Correlation Collection is before EUDAQ Mon collection
+                    eudaqCollection->getEUDAQMonitorHistos()->Fill(simpEv.getEvent_number(), tracksPerEvent);
             }
-          else
-            _colls.at(i)->Fill(simpEv);
-          my_event_inner_operations_time.Stop();
-          previous_event_correlation_time = my_event_inner_operations_time.RealTime();
+            else
+                _colls.at(i)->Fill(simpEv);
+            my_event_inner_operations_time.Stop();
+            previous_event_correlation_time = my_event_inner_operations_time.RealTime();
         }
-      else
-        _colls.at(i)->Fill(simpEv);
+        else
+            _colls.at(i)->Fill(simpEv);
 
-      // CollType is used to check which kind of Collection we are having
-      if (_colls.at(i)->getCollectionType()==HITMAP_COLLECTION_TYPE) // Calculate is only implemented for HitMapCollections
+        // CollType is used to check which kind of Collection we are having
+        if (_colls.at(i)->getCollectionType()==HITMAP_COLLECTION_TYPE) // Calculate is only implemented for HitMapCollections
         {
-          _colls.at(i)->Calculate(stdev->GetEventNumber());
+            _colls.at(i)->Calculate(stdev->GetEventNumber());
         }
     }
 
-  onlinemon->setEventNumber(stdev->GetEventNumber());
-  onlinemon->increaseAnalysedEventsCounter();
+    onlinemon->setEventNumber(stdev->GetEventNumber());
+    onlinemon->increaseAnalysedEventsCounter();
     
-  my_event_processing_time.Stop();
-  previous_event_fill_time=my_event_processing_time.RealTime();
+    my_event_processing_time.Stop();
+    previous_event_fill_time=my_event_processing_time.RealTime();
 }
 
 void RootMonitor::autoReset(const bool reset) {
-  onlinemon->setAutoReset(reset);
+    onlinemon->setAutoReset(reset);
 }
 
 void RootMonitor::DoStopRun()
 {
-  m_plane_c = 0;
-  m_ev_rec_n = 0;
+    m_plane_c = 0;
+    m_ev_rec_n = 0;
 
-  if (_writeRoot)
-  {
-    TFile *f = new TFile(rootfilename.c_str(),"RECREATE");
-    for (unsigned int i = 0 ; i < _colls.size(); ++i)
+    if (_writeRoot)
     {
-      _colls.at(i)->Write(f);
+        TFile *f = new TFile(rootfilename.c_str(),"RECREATE");
+        for (unsigned int i = 0 ; i < _colls.size(); ++i)
+        {
+            _colls.at(i)->Write(f);
+        }
+        f->Close();
     }
-    f->Close();
-  }
-  onlinemon->UpdateStatus("Run stopped");
+    onlinemon->UpdateStatus("Run stopped");
 }
 
 void RootMonitor::DoStartRun() {
-  m_plane_c = 0;
-  m_ev_rec_n = 0;
-  uint32_t runnumber = GetRunNumber();
+    m_plane_c = 0;
+    m_ev_rec_n = 0;
+    uint32_t runnumber = GetRunNumber();
 
-  if (onlinemon->getAutoReset())
-  {
-    onlinemon->UpdateStatus("Resetting..");
-    for (unsigned int i = 0 ; i < _colls.size(); ++i)
+    if (onlinemon->getAutoReset())
     {
-      if (_colls.at(i) != NULL)
-        _colls.at(i)->Reset();
+        onlinemon->UpdateStatus("Resetting..");
+        for (unsigned int i = 0 ; i < _colls.size(); ++i)
+        {
+            if (_colls.at(i) != NULL)
+                _colls.at(i)->Reset();
+        }
     }
-  }
 
-  onlinemon->UpdateStatus("Starting run..");
-  char out[255];
-  sprintf(out, "run%d.root", runnumber);
-  rootfilename = std::string(out);
-  onlinemon->setRunNumber(runnumber);
-  onlinemon->setRootFileName(rootfilename);
+    onlinemon->UpdateStatus("Starting run..");
+    char out[255];
+    sprintf(out, "run%d.root", runnumber);
+    rootfilename = std::string(out);
+    onlinemon->setRunNumber(runnumber);
+    onlinemon->setRootFileName(rootfilename);
 
-  // Reset the planes initializer on new run start:
-  _planesInitialized = false;
+    // Reset the planes initializer on new run start:
+    _planesInitialized = false;
 }
 
 void RootMonitor::setUpdate(const unsigned int up) {
-  onlinemon->setUpdate(up);
+    onlinemon->setUpdate(up);
 }
 
 //sets the location for the snapshots
 void RootMonitor::SetSnapShotDir(string s)
 {
-  snapshotdir=s;
+    snapshotdir=s;
 }
 
 
 //gets the location for the snapshots
 string RootMonitor::GetSnapShotDir()const{
-  return snapshotdir;
+    return snapshotdir;
 }
 
 uint64_t OfflineReading(eudaq::Monitor *mon, eudaq::FileReaderSP reader, uint32_t ev_n_l, uint32_t ev_n_h, uint32_t ev_c_max, std::string nameOut){
-  // DoConfigure(); //TODO setup the configure and init file.
-  mon->DoStartRun();
-  uint32_t ev_c = 0;
-  // ugly hacking here:
-  TFile * file = new TFile(nameOut.c_str(),"RECREATE");
-  int sicher =0;
-  TTree * _data = new TTree("_data","_data");
+    // DoConfigure(); //TODO setup the configure and init file.
+    mon->DoStartRun();
+    uint32_t ev_c = 0;
+    // ugly hacking here:
+    TFile * file = new TFile(nameOut.c_str(),"RECREATE");
+    int sicher =0;
+    TTree * _data = new TTree("_data","_data");
 
-  std::vector<int> _x0, _x1, _x2,_x3, _x4, _x5, _x81;
-  std::vector<int> _y0, _y1, _y2,_y3, _y4, _y5, _y81;
-  bool _invalid;
-  double _event, _tluID;
+    std::vector<int> _t81, _x0, _x1, _x2,_x3, _x4, _x5, _x81;
+    std::vector<int> _tot, _y0, _y1, _y2,_y3, _y4, _y5, _y81;
+    bool _invalid;
+    double _event, _tluID;
 
-  _data->Branch("x0",&_x0); _data->Branch("y0",&_y0);
-  _data->Branch("x1",&_x1); _data->Branch("y1",&_y1);
-  _data->Branch("x2",&_x2); _data->Branch("y2",&_y2);
-  _data->Branch("x3",&_x3); _data->Branch("y3",&_y3);
-  _data->Branch("x4",&_x4); _data->Branch("y4",&_y4);
-  _data->Branch("x5",&_x5); _data->Branch("y5",&_y5);
-  _data->Branch("x81",&_x81); _data->Branch("y81",&_y81);
-  _data->Branch("_event",&_event); _data->Branch("tluID",&_tluID);
+    _data->Branch("x0",&_x0); _data->Branch("y0",&_y0);
+    _data->Branch("x1",&_x1); _data->Branch("y1",&_y1);
+    _data->Branch("x2",&_x2); _data->Branch("y2",&_y2);
+    _data->Branch("x3",&_x3); _data->Branch("y3",&_y3);
+    _data->Branch("x4",&_x4); _data->Branch("y4",&_y4);
+    _data->Branch("x5",&_x5); _data->Branch("y5",&_y5);
+    _data->Branch("x81",&_x81); _data->Branch("y81",&_y81);
+    _data->Branch("t81",&_t81); _data->Branch("tot",&_tot);
+    _data->Branch("_event",&_event); _data->Branch("tluID",&_tluID);
 
-  _data->Branch("invalid", &_invalid);
+    _data->Branch("invalid", &_invalid);
 
-  while(1){
-    auto ev = std::const_pointer_cast<eudaq::Event>(reader->GetNextEvent());
-    if(!ev){
-      std::cout<<"end of data file with "<< ev_c << " events" <<std::endl;
-      break;
-    }
-    uint32_t ev_n = ev->GetEventN();
-    if(ev_n>=ev_n_l & ev_n<=400000){//ev_n_h){
-      //mon->DoReceive(ev);
-        // juhuuu
-        sicher++;
-        if(sicher%10000==0)
-            std::cout << "Event " << sicher<<std::endl;
-        auto stdev = std::dynamic_pointer_cast<eudaq::StandardEvent>(ev);
-        if(!stdev){
-          stdev = eudaq::StandardEvent::MakeShared();
-          eudaq::StdEventConverter::Convert(ev, stdev, nullptr); //no conf
+    while(1){
+        auto ev = std::const_pointer_cast<eudaq::Event>(reader->GetNextEvent());
+        if(!ev){
+            std::cout<<"end of data file with "<< ev_c << " events" <<std::endl;
+            break;
         }
-        for(uint i =0; i< stdev->NumPlanes(); i++)
-        {
-            const eudaq::StandardPlane & p = stdev->GetPlane(i);
-//            if(plane.Type()=="MuPixLike_DUT" || plane.Sensor()=="MuPixLike_DUT" )
-//            {
-//                if(plane.HitPixels())
-//                {x= plane.GetX(0);
-//                    y= plane.GetY(0);
-//                    sicher++;
-//                }
-//            }
-
-            int plane_id = p.ID();
-
-            for(unsigned iHit = 0; iHit< p.HitPixels();++iHit)
-            {
-                if(plane_id == 0)
-                {
-                    _x0.push_back(p.GetX(iHit));
-                    _y0.push_back(p.GetY(iHit));
-                   // _t0.push_back(0);
-                }
-                else if(plane_id == 1)
-                {
-                    _x1.push_back(p.GetX(iHit));
-                    _y1.push_back(p.GetY(iHit));
-//                    _//t1.push_back(0);
-                }
-                else if(plane_id == 2)
-                {
-                    _x2.push_back(p.GetX(iHit));
-                    _y2.push_back(p.GetY(iHit));
-//                    _t2.push_back(0);
-                }
-                else if(plane_id == 3)
-                {
-                    _x3.push_back(p.GetX(iHit));
-                    _y3.push_back(p.GetY(iHit));
-//                    _t3.push_back(0);
-                }
-                else if(plane_id == 4)
-                {
-                    _x4.push_back(p.GetX(iHit));
-                    _y4.push_back(p.GetY(iHit));
-//                    _t4.push_back(0);
-                }
-                else if(plane_id == 5)
-                {
-                    _x5.push_back(p.GetX(iHit));
-                    _y5.push_back(p.GetY(iHit));
-//                    _t5.push_back(0);
-
-                }
-                else if(plane_id == 81)
-                {
-                    _x81.push_back(p.GetX(iHit));
-                    _y81.push_back(p.GetY(iHit));
-//                    _t5.push_back(0);
-
-                }
-                else
-                    std::cout << plane_id <<std::endl;
-
+        uint32_t ev_n = ev->GetEventN();
+        if(ev_n>=ev_n_l & ev_n<=400000){//ev_n_h){
+            //mon->DoReceive(ev);
+            // juhuuu
+            sicher++;
+           if(sicher%10000==0)
+                std::cout << "Event " << sicher<<std::endl;
+            auto stdev = std::dynamic_pointer_cast<eudaq::StandardEvent>(ev);
+            if(!stdev){
+                stdev = eudaq::StandardEvent::MakeShared();
+//                std::cout << "converting ";
+                eudaq::StdEventConverter::Convert(ev, stdev, nullptr); //no conf
+//                std::cout << "done" << std::endl;
 
             }
-        }
-        _data->Fill();
-        _x0.clear(); _y0.clear(); //_t1.clear();
-        _x1.clear(); _y1.clear(); //_t1.clear();
-        _x2.clear(); _y2.clear(); //_t2.clear();
-        _x3.clear(); _y3.clear();// _t3.clear();
-        _x4.clear(); _y4.clear();// _t4.clear();
-        _x5.clear(); _y5.clear();// _t5.clear();
-        _x81.clear(); _y81.clear();// _t81.clear();
+            for(uint i =0; i< stdev->NumPlanes(); i++)
+            {
+                const eudaq::StandardPlane & p = stdev->GetPlane(i);
 
-        ev_c ++;
-      if(ev_c > ev_c_max){
-	std::cout<<"reach to event count "<< ev_c<<std::endl;
-	break;
-      }
+                int plane_id = p.ID();
+//                std::cout << i <<"\t"<<plane_id<< std::endl;
+                if(plane_id==81)
+                {
+                    for(unsigned iHit = 0; iHit < p.HitPixels()/2;++iHit)
+                    {
+                    _x81.push_back(p.GetX(iHit));
+                    _y81.push_back(p.GetY(iHit));
+                    }
+                    for(unsigned iHit = p.HitPixels()/2; iHit<p.HitPixels();++iHit)
+                    {
+                    _tot.push_back(p.GetX(iHit));
+                    _t81.push_back(p.GetY(iHit));
+                    }
+
+                } else {
+                    for(unsigned iHit = 0; iHit< p.HitPixels();++iHit)
+                    {
+                        if(plane_id == 0)
+                        {
+                            _x0.push_back(p.GetY(iHit));
+                            _y0.push_back(p.GetX(iHit));
+                            // _t0.push_back(0);
+                        }
+                        else if(plane_id == 1)
+                        {
+                            _x1.push_back(p.GetY(iHit));
+                            _y1.push_back(p.GetX(iHit));
+                            //                    _//t1.push_back(0);
+                        }
+                        else if(plane_id == 2)
+                        {
+                            _x2.push_back(p.GetY(iHit));
+                            _y2.push_back(p.GetX(iHit));
+                            //                    _t2.push_back(0);
+                        }
+                        else if(plane_id == 3)
+                        {
+                            _x3.push_back(p.GetY(iHit));
+                            _y3.push_back(p.GetX(iHit));
+                            //                    _t3.push_back(0);
+                        }
+                        else if(plane_id == 4)
+                        {
+                            _x4.push_back(p.GetY(iHit));
+                            _y4.push_back(p.GetX(iHit));
+                            //                    _t4.push_back(0);
+                        }
+                        else if(plane_id == 5)
+                        {
+                            _x5.push_back(p.GetY(iHit));
+                            _y5.push_back(p.GetX(iHit));
+                            //                    _t5.push_back(0);
+
+                        }
+                        else
+                            std::cout << plane_id <<std::endl;
+
+
+                    }
+                }
+            }
+            _data->Fill();
+            _x0.clear(); _y0.clear(); //_t1.clear();
+            _x1.clear(); _y1.clear(); //_t1.clear();
+            _x2.clear(); _y2.clear(); //_t2.clear();
+            _x3.clear(); _y3.clear();// _t3.clear();
+            _x4.clear(); _y4.clear();// _t4.clear();
+            _x5.clear(); _y5.clear();// _t5.clear();
+            _x81.clear(); _y81.clear();// _t81.clear();
+            _tot.clear(); _t81.clear();// _t81.clear();
+
+            ev_c ++;
+            if(ev_c > ev_c_max){
+                std::cout<<"reach to event count "<< ev_c<<std::endl;
+                break;
+            }
+        }
     }
-  }
-  std::cout << "sicher? "<< sicher <<std::endl;
-  _data->Write();
-  file->Close();
-  std::cout << "written "<<std::endl;
-  mon->DoStopRun();
-  return ev_c;
+    std::cout << "sicher? "<< sicher <<std::endl;
+    _data->Write();
+    file->Close();
+    std::cout << "written "<<std::endl;
+    mon->DoStopRun();
+    return ev_c;
 }
 
 int main(int argc, const char ** argv) {
-  eudaq::OptionParser op("EUDAQ Root Monitor", "1.0", "A Monitor using root for gui and graphics");
-  eudaq::Option<std::string> rctrl(op, "r", "runcontrol", "tcp://localhost:44000", "address",
-      "The address of the RunControl application");
-  eudaq::Option<std::string> level(op, "l", "log-level", "NONE", "level",
-      "The minimum level for displaying log messages locally");
-  eudaq::Option<int>             reduce(op, "rd", "reduce",  1, "Reduce the number of events");
-  eudaq::Option<unsigned>        corr_width(op, "cw", "corr_width",500, "Width of the track correlation window");
-  eudaq::Option<unsigned>        corr_planes(op, "cp", "corr_planes",  5, "Minimum amount of planes for track reconstruction in the correlation");
-  eudaq::Option<bool>            track_corr(op, "tc", "track_correlation", false, "Using (EXPERIMENTAL) track correlation(true) or cluster correlation(false)");
-  eudaq::Option<int>             update(op, "u", "update",  1000, "update every ms");
-  eudaq::Option<uint32_t>        event_id_low(op, "e", "event_id_low",  0, "running is offlinemode - analyse begin event id <num>");
-  eudaq::Option<uint32_t>        event_id_high(op, "E", "event_id_high", 0xffffffff, "running is offlinemode - analyse until event id <num>");
-  eudaq::Option<uint32_t>        event_amount_max(op, "ea", "event_amount_max", 0xffffffff, "running is offlinemode - analyse until reach events amount");
-  
-  eudaq::Option<std::string>     datafile(op, "d", "datafile",  " ", "offline mode data file");
-  eudaq::Option<std::string>     outfile(op, "o", "rootoutput",  " ", "offline mode data output file");
-  eudaq::Option<std::string>     configfile(op, "c", "config_file"," ", "filename","Config file to use for onlinemon");
-  eudaq::Option<std::string>     monitorname(op, "t", "monitor_name","StdEventMonitor", "StdEventMonitor","Name for onlinemon");	
-  eudaq::OptionFlag do_rootatend (op, "rf","root","Write out root-file after each run");
-  eudaq::OptionFlag do_resetatend (op, "rs","reset","Reset Histograms when run stops");
-  
-  try {
-    op.Parse(argv);
-    EUDAQ_LOG_LEVEL(level.Value());
-  } catch (...) {
-    return op.HandleMainException();
-  }
+    eudaq::OptionParser op("EUDAQ Root Monitor", "1.0", "A Monitor using root for gui and graphics");
+    eudaq::Option<std::string> rctrl(op, "r", "runcontrol", "tcp://localhost:44000", "address",
+                                     "The address of the RunControl application");
+    eudaq::Option<std::string> level(op, "l", "log-level", "NONE", "level",
+                                     "The minimum level for displaying log messages locally");
+    eudaq::Option<int>             reduce(op, "rd", "reduce",  1, "Reduce the number of events");
+    eudaq::Option<unsigned>        corr_width(op, "cw", "corr_width",500, "Width of the track correlation window");
+    eudaq::Option<unsigned>        corr_planes(op, "cp", "corr_planes",  5, "Minimum amount of planes for track reconstruction in the correlation");
+    eudaq::Option<bool>            track_corr(op, "tc", "track_correlation", false, "Using (EXPERIMENTAL) track correlation(true) or cluster correlation(false)");
+    eudaq::Option<int>             update(op, "u", "update",  1000, "update every ms");
+    eudaq::Option<uint32_t>        event_id_low(op, "e", "event_id_low",  0, "running is offlinemode - analyse begin event id <num>");
+    eudaq::Option<uint32_t>        event_id_high(op, "E", "event_id_high", 0xffffffff, "running is offlinemode - analyse until event id <num>");
+    eudaq::Option<uint32_t>        event_amount_max(op, "ea", "event_amount_max", 0xffffffff, "running is offlinemode - analyse until reach events amount");
 
-  bool offline = datafile.Value()!="" && datafile.Value()!=" "; 
+    eudaq::Option<std::string>     datafile(op, "d", "datafile",  " ", "offline mode data file");
+    eudaq::Option<std::string>     outfile(op, "o", "rootoutput",  " ", "offline mode data output file");
+    eudaq::Option<std::string>     configfile(op, "c", "config_file"," ", "filename","Config file to use for onlinemon");
+    eudaq::Option<std::string>     monitorname(op, "t", "monitor_name","StdEventMonitor", "StdEventMonitor","Name for onlinemon");
+    eudaq::OptionFlag do_rootatend (op, "rf","root","Write out root-file after each run");
+    eudaq::OptionFlag do_resetatend (op, "rs","reset","Reset Histograms when run stops");
 
-  if(offline){
-    rctrl.SetValue("null://");
-  }
-  if(!rctrl.IsSet())
-    rctrl.SetValue("tcp://localhost:44000");
-    
-  TApplication theApp("App", &argc, const_cast<char**>(argv),0,0);
-  RootMonitor mon(rctrl.Value(),
-		  100, 0, 1400, 700,
-                  configfile.Value(), monitorname.Value(),outfile.Value());
-  mon.setWriteRoot(do_rootatend.IsSet());
-  mon.autoReset(do_resetatend.IsSet());
-  mon.setReduce(reduce.Value());
-  mon.setUpdate(update.Value());
-  mon.setCorr_width(corr_width.Value());
-  mon.setCorr_planes(corr_planes.Value());
-  mon.setUseTrack_corr(track_corr.Value());
-  eudaq::Monitor *m = dynamic_cast<eudaq::Monitor*>(&mon);
-  std::future<uint64_t> fut_async_rd;
-
-  if(offline){
-    std::string infile_path = datafile.Value(); 
-    eudaq::FileReaderSP reader = eudaq::FileReader::Make("native", infile_path);
-    if(!reader){
-      std::cerr<<"OnlineMon:: ERROR, unable to access data file "<< infile_path<<std::endl;
-      throw;
+    try {
+        op.Parse(argv);
+        EUDAQ_LOG_LEVEL(level.Value());
+    } catch (...) {
+        return op.HandleMainException();
     }
-    fut_async_rd = std::async(std::launch::async, &OfflineReading, &mon, reader, event_id_low.Value(), event_id_high.Value(), event_amount_max.Value(), outfile.Value() );
-  }
-  else{
-    m->Connect();
-  }
 
-  theApp.Run(); //execute
-  if(fut_async_rd.valid())
-    fut_async_rd.get();
-  return 0;
+    bool offline = datafile.Value()!="" && datafile.Value()!=" ";
+
+    if(offline){
+        rctrl.SetValue("null://");
+    }
+    if(!rctrl.IsSet())
+        rctrl.SetValue("tcp://localhost:44000");
+    
+    TApplication theApp("App", &argc, const_cast<char**>(argv),0,0);
+    RootMonitor mon(rctrl.Value(),
+                    100, 0, 1400, 700,
+                    configfile.Value(), monitorname.Value(),outfile.Value());
+    mon.setWriteRoot(do_rootatend.IsSet());
+    mon.autoReset(do_resetatend.IsSet());
+    mon.setReduce(reduce.Value());
+    mon.setUpdate(update.Value());
+    mon.setCorr_width(corr_width.Value());
+    mon.setCorr_planes(corr_planes.Value());
+    mon.setUseTrack_corr(track_corr.Value());
+    eudaq::Monitor *m = dynamic_cast<eudaq::Monitor*>(&mon);
+    std::future<uint64_t> fut_async_rd;
+
+    if(offline){
+        std::string infile_path = datafile.Value();
+        eudaq::FileReaderSP reader = eudaq::FileReader::Make("native", infile_path);
+        if(!reader){
+            std::cerr<<"OnlineMon:: ERROR, unable to access data file "<< infile_path<<std::endl;
+            throw;
+        }
+        fut_async_rd = std::async(std::launch::async, &OfflineReading, &mon, reader, event_id_low.Value(), event_id_high.Value(), event_amount_max.Value(), outfile.Value() );
+    }
+    else{
+        m->Connect();
+    }
+
+    theApp.Run(); //execute
+    if(fut_async_rd.valid())
+        fut_async_rd.get();
+    return 0;
 }

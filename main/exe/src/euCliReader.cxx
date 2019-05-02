@@ -85,6 +85,6 @@ int main(int /*argc*/, const char **argv) {
     
     event_count ++;
   }
-  std::cout<< "There are "<< event_count << "Events"<<std::endl;
+  std::cout<< "There are "<< event_count << " Events"<<std::endl;
   return 0;
 }
