@@ -5,7 +5,7 @@ if(NOT EUDAQ_LCIO_LIBRARY)
   list(REMOVE_ITEM MODULE_SRC src/NiRawEvent2LCEventConverter.cc)
 endif()
 
-if(NOT USER_MuPix8_BUILD)
+if(NOT USER_ATLASPix_BUILD)
   list(REMOVE_ITEM MODULE_SRC src/*.cc)
 endif()
 
