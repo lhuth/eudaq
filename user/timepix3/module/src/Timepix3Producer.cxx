@@ -15,9 +15,6 @@
 #endif
 #include "Timepix3Config.h"
 
-//#include "gpib/ib.h"
-//#include "Keithley2450.h"
-
 //#define TPX3_VERBOSE
 
 class Timepix3Producer : public eudaq::Producer {
@@ -25,6 +22,7 @@ public:
   Timepix3Producer(const std::string name, const std::string &runcontrol);
   ~Timepix3Producer() override;
   void DoConfigure() override;
+  void DoInitialise() override;
   void DoStartRun() override;
   void DoStopRun() override;
   void DoReset() override;
@@ -35,20 +33,6 @@ public:
 private:
   bool m_running;
   double getTpx3Temperature();
-  uint64_t GetTimeus();
-
-  // Structure to store pixel info
-  struct PIXEL {
-    unsigned char x, y;
-    unsigned short tot;
-    uint64_t ts;
-  };
-
-  // Structure to store trigger info
-  struct TRIGGER {
-    unsigned short int_nr, tlu_nr;
-    uint64_t ts;
-  };
 
   unsigned m_ev;
   int m_spidrPort;
@@ -57,14 +41,38 @@ private:
   Timepix3Config *myTimepix3Config;
   SpidrController *spidrctrl;
   SpidrDaq *spidrdaq;
-  //  Keithley2450 *k2450;
-  int m_use_k2450, m_gpib_num;
-  double m_Vbias, m_Ilim, m_Vstart, m_Vreturn, m_VbiasMax;
-  int m_doBiasScan, m_VstepCount, m_VbiasStep;
   int m_xml_VTHRESH;
-  int m_do_threshold_scan, m_threshold_start, m_threshold_step, m_threshold_max, m_threshold_return, m_threshold_count;
   float m_temp;
-  int m_maxPixVec, m_pixToDel;
+
+  /** Return the binary representation of a char as std::string
+   */
+  template <typename T> std::string to_bit_string(const T data) {
+    std::ostringstream stream;
+    for(int i = std::numeric_limits<T>::digits - 1; i >= 0; i--) {
+      stream << ((data >> i) & 1);
+    }
+    return stream.str();
+  }
+
+  template <typename T> std::string to_hex_string(const T i) {
+    std::ostringstream stream;
+    stream << std::hex << std::showbase << std::setfill('0') << std::setw(std::numeric_limits<T>::digits / 4) << std::hex
+           << static_cast<uint64_t>(i);
+    return stream.str();
+  }
+
+    /** Helper function to return a printed list of an integer vector, used to shield
+   *  debug code from being executed if debug level is not sufficient
+   */
+  template <typename T> std::string listVector(std::map<T, T> vec, std::string separator = ", ") {
+    std::stringstream os;
+    for(auto it : vec) {
+      os << to_hex_string(it.first) << ": ";
+      os << static_cast<uint64_t>(it.second);
+      os << separator;
+    }
+    return os.str();
+  };
 };
 
 namespace{
@@ -72,48 +80,44 @@ namespace{
     Register<Timepix3Producer, const std::string&, const std::string&>(Timepix3Producer::m_id_factory);
 }
 
-uint64_t Timepix3Producer::GetTimeus() {
-  #ifdef WIN32
-  /* Windows */
-  FILETIME ft;
-  LARGE_INTEGER li;
-
-  /* Get the amount of 100 nano seconds intervals elapsed since January 1, 1601 (UTC) and copy it
-  * to a LARGE_INTEGER structure. */
-  GetSystemTimeAsFileTime(&ft);
-  li.LowPart = ft.dwLowDateTime;
-  li.HighPart = ft.dwHighDateTime;
-
-  uint64_t ret = li.QuadPart;
-  ret -= 116444736000000000LL; /* Convert from file time to UNIX epoch time. */
-  ret /= 10000; /* From 100 nano seconds (10^-7) to 1 millisecond (10^-3) intervals */
-
-  return ret;
-  #else
-  /* Linux */
-  struct timeval tv;
-
-  gettimeofday(&tv, NULL);
-
-  uint64_t ret = tv.tv_usec;
-
-  /* Adds the seconds (10^0) after converting them to milliseconds (10^-3) */
-  ret += (tv.tv_sec * 1000000);
-
-  return ret;
-  #endif
-}
-
-
 Timepix3Producer::Timepix3Producer(const std::string name, const std::string &runcontrol)
 : eudaq::Producer(name, runcontrol), m_ev(0), m_running(false) {
-
   myTimepix3Config = new Timepix3Config();
 }
 
 Timepix3Producer::~Timepix3Producer() {}
 
-void Timepix3Producer::DoReset() {}
+void Timepix3Producer::DoReset() {
+  spidrctrl->closeShutter();
+
+  if(spidrctrl) {
+    delete spidrctrl;
+  }
+  if(spidrdaq) {
+    delete spidrdaq;
+  }
+}
+
+void Timepix3Producer::DoInitialise() {
+  auto config = GetInitConfiguration();
+
+  // SPIDR-TPX3 IP & PORT
+  m_spidrIP  = config->Get( "SPIDR_IP", "192.168.100.10" );
+  int ip[4];
+  vector<TString> ipstr = tokenise( m_spidrIP, ".");
+  for (int i = 0; i < ipstr.size(); i++ ) ip[i] = ipstr[i].Atoi();
+  m_spidrPort = config->Get( "SPIDR_Port", 50000 );
+
+  cout << "Connecting to SPIDR at " << ip[0] << "." << ip[1] << "." << ip[2] << "." << ip[3] << ":" << m_spidrPort << endl;
+
+  // Open a control connection to SPIDR-TPX3 module
+  // with address 192.168.100.10, default port number 50000
+  spidrctrl = new SpidrController( ip[0], ip[1], ip[2], ip[3], m_spidrPort );
+
+  // Create SpidrDaq for later
+  spidrdaq = new SpidrDaq( spidrctrl );
+}
+
 
 // This gets called whenever the DAQ is configured
 void Timepix3Producer::DoConfigure() {
@@ -128,19 +132,6 @@ void Timepix3Producer::DoConfigure() {
   m_xmlfileName = config->Get( "XMLConfig", "" );
   myTimepix3Config->ReadXMLConfig( m_xmlfileName );
   cout << "Configuration file created on: " << myTimepix3Config->getTime() << endl;
-
-  // SPIDR-TPX3 IP & PORT
-  m_spidrIP  = config->Get( "SPIDR_IP", "192.168.100.10" );
-  int ip[4];
-  vector<TString> ipstr = tokenise( m_spidrIP, ".");
-  for (int i = 0; i < ipstr.size(); i++ ) ip[i] = ipstr[i].Atoi();
-  m_spidrPort = config->Get( "SPIDR_Port", 50000 );
-
-  cout << "Connecting to SPIDR at " << ip[0] << "." << ip[1] << "." << ip[2] << "." << ip[3] << ":" << m_spidrPort << endl;
-
-  // Open a control connection to SPIDR-TPX3 module
-  // with address 192.168.100.10, default port number 50000
-  spidrctrl = new SpidrController( ip[0], ip[1], ip[2], ip[3], m_spidrPort );
 
   // Reset Device
   if( !spidrctrl->reinitDevice( device_nr ) ) {
@@ -166,12 +157,16 @@ void Timepix3Producer::DoConfigure() {
       std::cout << "Firmware version: " << spidrctrl->versionToString( firmwVersion ) << std::endl;
       EUDAQ_USER("SPIDR Firmware: " + spidrctrl->versionToString( firmwVersion ));
     }
-    
+
     if( spidrctrl->getSoftwVersion( &softwVersion ) ) {
       std::cout << "Software version: " << spidrctrl->versionToString( softwVersion ) << std::endl;
     EUDAQ_USER("SPIDR Software: " + spidrctrl->versionToString( softwVersion ));
     }
     std::cout << "------------------------------\n" << std::endl;
+  }
+
+  if (!spidrctrl->setExtRefClk(config->Get("external_clock", true))) {
+    EUDAQ_ERROR("setExtRefClk"+ spidrctrl->errorString());
   }
 
   // DACs configuration
@@ -194,8 +189,31 @@ void Timepix3Producer::DoConfigure() {
   if( !spidrctrl->getDeviceId( device_nr, &device_id ) ) {
     EUDAQ_ERROR("getDeviceId: " + spidrctrl->errorString());
   }
- 
-  //cout << "Device ID: " << device_id << endl;
+  cout << "Device ID: " << device_id << endl;
+
+
+  // Header filter mask:
+  // ETH:   0000 1100 0111 0000
+  // CPU:   1111 0011 1000 1111
+  int eth_mask = 0x0C70, cpu_mask = 0xF38F;
+  if (!spidrctrl->setHeaderFilter(device_nr, eth_mask, cpu_mask)) {
+    EUDAQ_ERROR("setHeaderFilter: "+ spidrctrl->errorString());
+  }
+
+  if (!spidrctrl->getHeaderFilter(device_nr, &eth_mask, &cpu_mask)) {
+    EUDAQ_ERROR("getHeaderFilter: "+ spidrctrl->errorString());
+  }
+  std::ostringstream stream;
+  for(int i = 15; i >= 0; i--) {
+    stream << ((eth_mask >> i) & 1);
+  }
+  std::cout << "ETH mask: " << stream.str() << std::endl;
+  std::ostringstream stream2;
+  for(int i = 15; i >= 0; i--) {
+    stream2 << ((cpu_mask >> i) & 1);
+  }
+  std::cout << "CPU mask: " << stream2.str() << std::endl;
+
   m_chipID = myTimepix3Config->getChipID( device_id );
   cout << "[Timepix3] Chip ID: " << m_chipID << endl;
   EUDAQ_USER("Timepix3 Chip ID: " + m_chipID);
@@ -220,24 +238,7 @@ void Timepix3Producer::DoConfigure() {
       }
 
     } else if( name == "VTHRESH" ) {
-      int coarse = val / 160;
-      int fine = val - coarse*160 + 352;
       m_xml_VTHRESH = val;
-      if( !spidrctrl->setDac( device_nr, TPX3_VTHRESH_COARSE, coarse ) ) {
-        cout << "Error, could not set VTHRESH_COARSE." << endl;
-      } else {
-        int tmpval = -1;
-        spidrctrl->getDac( device_nr, TPX3_VTHRESH_COARSE, &tmpval );
-        cout << "Successfully set DAC: VTHRESH_COARSE to " << tmpval << endl;
-      }
-      if( !spidrctrl->setDac( device_nr, TPX3_VTHRESH_FINE, fine ) ) {
-        cout << "Error, could not set VTHRESH_FINE." << endl;
-      } else {
-        int tmpval = -1;
-        spidrctrl->getDac( device_nr, TPX3_VTHRESH_FINE, &tmpval );
-        cout << "Successfully set DAC: VTHRESH_FINE to " << tmpval << endl;
-      }
-
     } else if( name == "GeneralConfig" ) {
       if ( !spidrctrl->setGenConfig( device_nr, val ) ) {
         EUDAQ_ERROR("setGenConfig: " + spidrctrl->errorString());
@@ -268,8 +269,31 @@ void Timepix3Producer::DoConfigure() {
         cout << "Successfully set Output Block Config to " << config << endl;
       }
     }
-
   }
+
+  // Threshold
+  int threshold = config->Get( "threshold", m_xml_VTHRESH );
+  int coarse = threshold / 160;
+  int fine = threshold - coarse*160 + 352;
+
+  // Coarse threshold:
+  if(!spidrctrl->setDac( device_nr, TPX3_VTHRESH_COARSE, coarse ) ) {
+    EUDAQ_ERROR("Could not set VTHRESH_COARSE: " + spidrctrl->errorString());
+  } else {
+    int tmpval = -1;
+    spidrctrl->getDac( device_nr, TPX3_VTHRESH_COARSE, &tmpval );
+    EUDAQ_EXTRA("Successfully set DAC: VTHRESH_COARSE to " + std::to_string(tmpval));
+  }
+
+  // Fine threshold:
+  if(!spidrctrl->setDac( device_nr, TPX3_VTHRESH_FINE, fine ) ) {
+    EUDAQ_ERROR("Could not set VTHRESH_FINE: " + spidrctrl->errorString());
+  } else {
+    int tmpval = -1;
+    spidrctrl->getDac( device_nr, TPX3_VTHRESH_FINE, &tmpval );
+    EUDAQ_EXTRA("Successfully set DAC: VTHRESH_FINE to " + std::to_string(tmpval));
+  }
+  EUDAQ_USER("Threshold = " + std::to_string(threshold));
 
   // Reset entire matrix config to zeroes
   spidrctrl->resetPixelConfig();
@@ -339,44 +363,6 @@ void Timepix3Producer::DoConfigure() {
     EUDAQ_ERROR("getPixelConfig: " + spidrctrl->errorString());
   }
 
-  // Keithley stuff
-  m_use_k2450   = config->Get( "USE_Keithley", 0 );
-  m_gpib_num    = config->Get( "Keithley_GPIB", 18 );
-  m_Vbias       = config->Get( "V_Bias", 0 );
-  m_Ilim        = config->Get( "I_Limit", 1e-6 );
-  m_doBiasScan  = config->Get( "Do_Bias_Scan", 0 );
-  m_Vstart      = config->Get( "V_start", 0 );
-  m_VbiasStep   = config->Get( "V_step", 0 );
-  m_VbiasMax    = config->Get( "V_max", 0 );
-  m_Vreturn     = config->Get( "V_return", 0 );
-  // if( m_use_k2450 == 1 ) {
-  //   cout << endl;
-  //   k2450 = new Keithley2450( m_gpib_num );
-  //   k2450->OutputOff();
-  //   sleep(1);
-  //   //k2450->SetMeasureCurrent();
-  //   k2450->SetMeasureVoltage();
-  //   sleep(1);
-  //   k2450->SetSourceVoltage4W();
-  //   sleep(1);
-  //   k2450->SetOutputVoltageCurrentLimit( m_Ilim );
-  //   sleep(1);
-  //   k2450->OutputOn();
-  // }
-  m_VstepCount = 0;
-
-  // Threshold scan conf params
-  m_do_threshold_scan = config->Get( "do_threshold_scan", 0 );
-  m_threshold_start   = config->Get( "threshold_start", m_xml_VTHRESH );
-  m_threshold_step    = config->Get( "threshold_step", 0 );
-  m_threshold_max     = config->Get( "threshold_max", m_xml_VTHRESH );
-  m_threshold_return  = config->Get( "threshold_return", m_xml_VTHRESH );
-  m_threshold_count   = 0;
-
-  // Maximum pixel vector size and how many pixels to clean from it (to handle backlog)
-  m_maxPixVec = config->Get( "MaxPixelVecSize", 10000 );
-  m_pixToDel  = config->Get( "NpixelsToDelete", 5000 );
-
   // Also display something for us
   cout << endl;
   cout << "Timepix3 Producer configured. Ready to start run. " << endl;
@@ -389,23 +375,22 @@ double Timepix3Producer::getTpx3Temperature() {
   if( !spidrctrl->setSenseDac( device_nr, TPX3_BANDGAP_TEMP ) ) {
     EUDAQ_ERROR("setSenseDac: " + spidrctrl->errorString());
   }
-  
+
   if( !spidrctrl->getAdc( &bg_temp_adc, 64 ) ) {
     EUDAQ_ERROR("getAdc: " + spidrctrl->errorString());
   }
-  
+
   float bg_temp_V = 1.5*( bg_temp_adc/64. )/4096;
   if( !spidrctrl->setSenseDac( device_nr, TPX3_BANDGAP_OUTPUT ) ) {
     EUDAQ_ERROR("setSenseDac: " + spidrctrl->errorString());
   }
-  
+
   if( !spidrctrl->getAdc( &bg_output_adc, 64 ) ) {
     EUDAQ_ERROR("getAdc: " + spidrctrl->errorString());
   }
-  
+
   float bg_output_V = 1.5*( bg_output_adc/64. )/4096;
   m_temp = 88.75 - 607.3 * ( bg_temp_V - bg_output_V);
-  //    cout << "[Timepix3] Temperature is " << m_temp << " C" << endl;
   return m_temp;
 }
 
@@ -413,60 +398,6 @@ void Timepix3Producer::DoStartRun() {
   m_ev = 0;
 
   std::cout << "Starting run..." << std::endl;
-
-  // Bias scan
-  double newBiasVoltage = m_Vstart + m_VstepCount*m_VbiasStep;
-  // if( m_use_k2450 == 1 ) {
-  //   if( m_doBiasScan == 1 ) {
-  // 	if ( newBiasVoltage <= m_VbiasMax ) {
-  // 	  k2450->SetOutputVoltage( newBiasVoltage );
-  // 	  m_VstepCount++;
-  // 	} else {
-  // 	  k2450->SetOutputVoltage( m_Vreturn );
-  // 	  newBiasVoltage = m_Vreturn;
-  // 	}
-  //   } else {
-  // 	k2450->SetOutputVoltage( m_Vbias );
-  // 	newBiasVoltage = m_Vbias;
-  //   }
-  // }
-
-  // Threshold scan
-  int newThreshold = m_threshold_start + m_threshold_count*m_threshold_step;
-  if( m_do_threshold_scan == 1 ) {
-    int coarse = newThreshold / 160;
-    int fine = newThreshold - coarse*160 + 352;
-    if( newThreshold <= m_threshold_max ) {
-      if( !spidrctrl->setDac( device_nr, TPX3_VTHRESH_COARSE, coarse ) ) {
-	EUDAQ_ERROR("setDac: " + spidrctrl->errorString());
-      }
-      if( !spidrctrl->setDac( device_nr, TPX3_VTHRESH_FINE, fine ) ) {
-	EUDAQ_ERROR("setDac: " + spidrctrl->errorString());
-      }
-      m_threshold_count++;
-    } else {
-      int coarse = m_threshold_return / 160;
-      int fine = m_threshold_return - coarse*160 + 352;
-      if( !spidrctrl->setDac( device_nr, TPX3_VTHRESH_COARSE, coarse ) ) {
-	EUDAQ_ERROR("setDac: " + spidrctrl->errorString());
-      }
-      if( !spidrctrl->setDac( device_nr, TPX3_VTHRESH_FINE, fine ) ) {
-	EUDAQ_ERROR("setDac: " + spidrctrl->errorString());
-      }
-      newThreshold = 	m_threshold_return;
-    }
-  } else {
-    newThreshold = m_xml_VTHRESH;
-  }
-  cout << "[Timepix3] Threshold = " << newThreshold << endl;
-
-  // Put measured bias voltage in BORE
-  // if ( m_use_k2450 == 1 ) {
-  //   sleep(2); // wait for ramp up
-  //   double actualBiasVoltage = k2450->ReadVoltage();
-  //   bore.SetTag( "VBiasActual", actualBiasVoltage );
-  //   bore.SetTag( "VBiasSet", newBiasVoltage );
-  // }
 
   double temp=getTpx3Temperature();
   std::cout << "Started run." << std::endl;
@@ -494,7 +425,7 @@ void Timepix3Producer::DoTerminate() {
   }
 
   // Clean up
-  delete spidrdaq;
+  DoReset();
   std::cout << "Terminated." << std::endl;
 }
 
@@ -502,10 +433,8 @@ void Timepix3Producer::DoTerminate() {
 void Timepix3Producer::RunLoop() {
 
   std::cout << "Starting run loop..." << std::endl;
- 
+
   unsigned int m_ev_next_update=0;
-  // Create SpidrDaq for later (best place to do it?)
-  spidrdaq = new SpidrDaq( spidrctrl );
 
   // Restart timers to sync Timepix3 and TLU timestamps
   if( !spidrctrl->restartTimers() ) {
@@ -531,220 +460,88 @@ void Timepix3Producer::RunLoop() {
     EUDAQ_ERROR("setTluEnable: " + spidrctrl->errorString());
   }
 
-  // Vectors to contain pixel and trigger structures
-  vector< PIXEL > pixel_vec;
-  pixel_vec.reserve( 10000000 );
-  vector< TRIGGER > trigger_vec;
-  trigger_vec.reserve( 10000000 );
-  int last_trg_timestamp=0;
-  uint64_t unfolded_timestamp=0;
-  int last_fpga_ts=0x00000; //SAMIR: was 0x10000
-  const uint64_t TIMER_EPOCH = 0x40000000;
-  int cnt = 0;
+  std::map<int, int> header_counter;
 
   while(1) {
     if(!m_running){
       break;
     }
 
-    int size;
     bool next_sample = true;
 
-    // Get a sample of pixel data packets, with timeout in ms
-    const unsigned int BUF_SIZE = 8*1024*1024;
-    next_sample = spidrdaq->getSample( BUF_SIZE, 1 );
+    if(spidrdaq->bufferFull() || spidrdaq->bufferFullOccurred()) {
+      EUDAQ_ERROR("Buffer overflow");
+    }
 
     // Log some info
     if(m_ev >= m_ev_next_update) {
       EUDAQ_USER("Timepix3 temperature: " + std::to_string(getTpx3Temperature()) + "°C");
-      m_ev_next_update=m_ev+10000;
+      m_ev_next_update=m_ev+50000;
     }
 
-    if( next_sample ) {
+    // Get a sample of pixel data packets, with timeout in ms
+    const unsigned int BUF_SIZE = 8*1024*1024;
+    next_sample = spidrdaq->getSample(BUF_SIZE, 1);
 
-      ++cnt;
-      size = spidrdaq->sampleSize();
-
-      const int HALF_EPOCH=0x8000;
+    if(next_sample) {
+      auto size = spidrdaq->sampleSize();
 
       // look inside sample buffer...
-      while( 1 ) {
+      std::vector<eudaq::EventSPC> data_buffer;
+      while(1) {
+        uint64_t data = spidrdaq->nextPacket();
 
-	uint64_t data = spidrdaq->nextPacket();
+        // ...until the sample buffer is empty
+        if(!data) break;
 
-	// ...until the sample buffer is empty
-	if( !data ) break;
+        uint64_t header = (data & 0xF000000000000000) >> 60;
+        header_counter[header]++;
 
-	uint64_t header = data & 0xF000000000000000;
+        if(m_ev%10000 == 0) {
+          std::cout << "Headers: " << listVector(header_counter) << "\r";
+        }
 
-	// Data-driven or sequential readout pixel data header?
-	if( header == 0xB000000000000000 || header == 0xA000000000000000 ) {
-	  struct PIXEL pixel;
+        // Data-driven or sequential readout pixel data header?
+        if(header == 0x6) { // Or TLU packet header?
 
-	  unsigned char x, y, ftoa;
-	  uint64_t pixdata, tot, toa;
-	  uint64_t fpga_ts;
-	  long long pix_ts;
-	  uint64_t dcol, spix, pix;
-	  // doublecolumn * 2
-	  dcol  = (( data & 0x0FE0000000000000 ) >> 52 ); //(16+28+9-1)
-	  // superpixel * 4
-	  spix  = (( data & 0x001F800000000000 ) >> 45 ); //(16+28+3-2)
-	  // pixel
-	  pix   = (( data & 0x0000700000000000) >> 44 ); //(16+28)
-	  pixel.x    = (unsigned char) ( dcol + pix/4 );
-	  pixel.y    = (unsigned char) ( spix + ( pix & 0x3 ) );
-	  // pixel data
-	  pixdata = (int) (( data & 0x00000FFFFFFF0000 ) >> 16 );
-	  pixel.tot  =  ( pixdata >> 4 ) & 0x3FF;
+          // Send out pixel data accumulated so far:
+          auto evup = eudaq::Event::MakeUnique("Timepix3RawEvent");
+          for(auto& subevt : data_buffer) {
+            evup->AddSubEvent(subevt);
+          }
+          SendEvent(std::move(evup));
+          data_buffer.clear();
+          m_ev++;
 
-	  // timestamp calculation
-	  ftoa = pixdata & 0xF;
-	  toa  = ( pixdata >> 14 ) & 0x3FFF;
-	  fpga_ts = (int) (data & 0x000000000000FFFF);
-	  pix_ts = ( fpga_ts << 14 ) | toa;
+          // Create and send new trigger event
+          auto evtrg = eudaq::Event::MakeUnique("Timepix3TrigEvent");
+          evtrg->AddBlock(0, &data, sizeof(data));
+          SendEvent(std::move(evtrg));
+          m_ev++;
+        } else {
+          auto evup = eudaq::Event::MakeShared("Timepix3RawEvent");
+          evup->AddBlock(0, &data, sizeof(data));
+          data_buffer.push_back(evup);
+        }
 
-	  if ( (int)fpga_ts < ((int)last_fpga_ts - HALF_EPOCH) ) {
-	    unfolded_timestamp+=TIMER_EPOCH;
-#ifdef TPX3_VERBOSE
-	    cout << "-- unfolding (pix) --\n";
-#endif
-
-	    last_fpga_ts = fpga_ts;
-	  } else if ( (int)fpga_ts >= ((int)last_fpga_ts + HALF_EPOCH) ) {
-	    pix_ts -= TIMER_EPOCH;
-	  } else {
-	    last_fpga_ts = fpga_ts;
-	  }
-	  pix_ts += unfolded_timestamp;
-	  pix_ts <<= 4;
-	  pix_ts -= ftoa;
-	  pixel.ts = pix_ts;
-
-	  // store PIXEL struct in vector
-	  pixel_vec.push_back( pixel );
-	  if (pixel_vec.size()>m_maxPixVec) {
-	    pixel_vec.erase (pixel_vec.begin(),pixel_vec.begin()+m_pixToDel);
-#ifdef TPX3_VERBOSE
-	    std::cout << "Removing pixel data, too much back log!"<< std::endl;
-#endif
-	  }
-	  // print it
-#ifdef TPX3_VERBOSE
-	  printf("[PIXDATA] (%3d,%3d) TOT:%5d TOA:%5d FPGA_TS:%6d       TS:%15llu\n", pixel.x , pixel.y , pixel.tot, toa , fpga_ts, pixel.ts );
-#endif
-	} else if( header == 0x5000000000000000 ) { // Or TLU packet header?
-	  struct TRIGGER trigger;
-	  uint64_t fpga_ts;
-	  unsigned short int_trg_nr, tlu_trg_nr;
-	  long long trg_timestamp;
-	  //internal trigger number
-	  trigger.int_nr = (data >> 45) & 0x7FFF;
-	  //TLU trigger number
-	  trigger.tlu_nr = (data >> 30) & 0x7FFF;
-
-	  //timestamp
-	  trg_timestamp = data & 0x3FFFFFFF;
-	  fpga_ts = (int) ((trg_timestamp>>14) & 0x000000000000FFFF);
-	  if ( (int)fpga_ts < ((int)last_fpga_ts - HALF_EPOCH) )
-	    {
-	      unfolded_timestamp += TIMER_EPOCH;
-#ifdef TPX3_VERBOSE
-	      cout << "-- unfolding (trg) --\n";
-#endif
-	      last_fpga_ts = fpga_ts;
-	    } else if ( fpga_ts >= last_fpga_ts +HALF_EPOCH  )
-	    trg_timestamp-=TIMER_EPOCH;
-	  else
-	    last_fpga_ts = fpga_ts;
-
-	  trg_timestamp += unfolded_timestamp;
-	  trg_timestamp <<= 4;
-	  trigger.ts = trg_timestamp;
-
-#ifdef TPX3_VERBOSE
-	  printf("[TRGDATA] tlu_id:%5d int_id:%5d                          TS:%15llu\n", trigger.tlu_nr , trigger.int_nr, trigger.ts);
-#endif
-	  // store TRIGGER struct in vector
-	  trigger_vec.push_back( trigger );
-
-	  // Loop over pixel and trigger vectors
-	  while( trigger_vec.size() > 1 ) {
-	    uint64_t start_time=GetTimeus();
-	    // Current event
-	    auto evup = eudaq::Event::MakeUnique("Timepix3RawDataEvent");
-	    evup->SetTriggerN(m_ev);
-
-	    std::vector<unsigned char> bufferTrg;
-	    std::vector<unsigned char> bufferPix;
-
-	    uint64_t curr_trg_ts = trigger_vec[0].ts;
-	    uint64_t next_trg_ts = trigger_vec[1].ts;
-	    uint64_t max_pixel_ts = ( next_trg_ts + curr_trg_ts ) / 2;
-
-	    uint64_t curr_tlu_nr = trigger_vec[0].tlu_nr;
-	    uint64_t curr_int_nr = trigger_vec[0].int_nr;
-
-	    // pack TLU info in its buffer
-	    pack( bufferTrg, curr_trg_ts);
-	    pack( bufferTrg, curr_tlu_nr);
-	    pack( bufferTrg, curr_int_nr);
-
-	    // and add it to the event
-	    evup->AddBlock( 0, bufferTrg );
-#ifdef TPX3_VERBOSE
-	    uint64_t fpts=0;
-	    if (pixel_vec.size()>0) fpts=pixel_vec[0].ts;
-	    printf("\n=> processing tr_id %5d  ts: %15lu max_ts: %15lu next_trg_ts: %15lu  (pix vec size: %d, first pix ts: %lu)\n", trigger_vec[0].tlu_nr,curr_trg_ts, max_pixel_ts, next_trg_ts , pixel_vec.size(),fpts);
-
-#endif
-
-	    // Loop over pixels
-	    for( int j = 0; j < pixel_vec.size(); ++j ) {
-	      uint64_t curr_pix_ts = pixel_vec[j].ts;
-	      if( curr_pix_ts < max_pixel_ts ) {
-
-#ifdef TPX3_VERBOSE
-		printf("                        +  ts: %15lu diff: %15ld  (pix %3d,%3d)\n", curr_pix_ts, diff, pixel_vec[j].x, pixel_vec[j].y );
-#endif
-		// Pack pixel data into event buffer
-		pack( bufferPix, pixel_vec[j].x );
-		pack( bufferPix, pixel_vec[j].y );
-		pack( bufferPix, pixel_vec[j].tot );
-		pack( bufferPix, pixel_vec[j].ts );
-
-		pixel_vec.erase( pixel_vec.begin() + j );
-		j--; // after removing one pixel data packet, need to go back one step in the vector to avoid skipping pixels
-	      }
-	      else if( curr_pix_ts > next_trg_ts ) {
-#ifdef TPX3_VERBOSE
-		printf("                        -> break! (%lu > %lu , diff:%ld)\n",curr_pix_ts,next_trg_ts,curr_pix_ts-next_trg_ts  );
-#endif
-		break;
-	      }
-	    }
-
-	    // Remove trigger from vector
-	    trigger_vec.erase( trigger_vec.begin() );
-	    // Add buffer to block
-	    evup->AddBlock( 1, bufferPix );
-	    // Send the event to the Data Collector
-	    SendEvent(std::move(evup));
-
-	    uint64_t stop_time=GetTimeus();
-	    uint64_t dt=stop_time-start_time;
-	    printf("[ev:%6u|tlu:%5lu] Pixels:%5lu Buildtime:%6luus Pixels left:%6lu\n",m_ev,curr_tlu_nr,bufferPix.size(),dt,pixel_vec.size());
-	    fflush( stdout );
-	    // Now increment the event number
-	    m_ev++;
-	  }
-	}
       } // End loop over sample buffer
 
-      printf("Pixels left: %5lu Triggers:%5lu\n",pixel_vec.size(), trigger_vec.size());
-      fflush( stdout );
-    }
-  }
+      // Send remaining pixel data:
+      if(!data_buffer.empty()) {
+        auto evup = eudaq::Event::MakeUnique("Timepix3RawEvent");
+        for(auto& subevt : data_buffer) {
+          evup->AddSubEvent(subevt);
+        }
+        SendEvent(std::move(evup));
+        data_buffer.clear();
+        m_ev++;
+      }
+    } // Sample available
+  } // Readout loop
 
+  std::cout << "HEADERS: " << std::endl;
+  for(auto& i : header_counter) {
+    std::cout << i.first << ":\t" << i.second << std::endl;
+  }
   std::cout << "Exiting run loop." << std::endl;
 }
