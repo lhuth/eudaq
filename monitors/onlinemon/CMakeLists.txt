@@ -29,9 +29,9 @@ endif()
 include_directories(. include)
 include_directories(${CMAKE_BINARY_DIR})
 
-if(ROOT_VERSION_MAJOR GREATER 5)
+#if(ROOT_VERSION_MAJOR GREATER 5)
   add_definitions(-DEUDAQ_LIB_ROOT6)
-endif()
+#endif()
 
 set(THISMON StdEventMonitor)
 

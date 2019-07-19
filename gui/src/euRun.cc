@@ -631,7 +631,19 @@ void RunControlGUI::nextStep()
 
         updateInfos();
         std::this_thread::sleep_for (std::chrono::seconds(3));
-        on_btnConfig_clicked();
+        //on_btnConfig_clicked();
+        // megqing needs certain order
+        for(auto &conn_status: m_map_conn_status_last)
+        {
+            if(m_rc && conn_status.first->GetName()=="aida_tlu")
+                m_rc->ConfigureSingleConnection(conn_status.first);
+        }
+        std::this_thread::sleep_for (std::chrono::seconds(3));
+        for(auto &conn_status: m_map_conn_status_last)
+        {
+            if(m_rc && conn_status.first->GetName()!="aida_tlu")
+                m_rc->ConfigureSingleConnection(conn_status.first);
+        }
         while(!allConnectionsInState(eudaq::Status::STATE_CONF)){
             updateInfos();
             QCoreApplication::processEvents();
