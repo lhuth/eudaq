@@ -9,7 +9,7 @@
 #include <TPRegexp.h>
 #include <TObjString.h>
 #include <TStopwatch.h>
-
+#include <TTree.h>
 // EUDAQ includes
 #ifndef __CINT__
 #include "eudaq/Monitor.hh"
@@ -43,7 +43,7 @@ class RootMonitor : public eudaq::Monitor{
 public:
   RootMonitor(const std::string &runcontrol, 
 	      int x, int y, int w, int h,
-              const std::string &conffile = "", const std::string &monname = "");
+              const std::string &conffile = "", const std::string &monname = "", const std::string &outfile = "");
   ~RootMonitor() override;
   void DoConfigure() override;
   void DoStartRun() override;
@@ -68,6 +68,8 @@ public:
   OnlineMonWindow *getOnlineMon() const;
   OnlineMonConfiguration mon_configdata; // FIXME
 private:
+  TTree * _dataTree;
+  std::string m_out;
   std::vector<BaseCollection *> _colls;
   OnlineMonWindow *onlinemon;
   std::string rootfilename;

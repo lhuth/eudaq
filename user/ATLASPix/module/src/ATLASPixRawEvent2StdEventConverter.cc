@@ -24,8 +24,8 @@ bool ATLASPixRawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::S
     if(!tf->from_uint8_t(ev->GetBlock(block_n)))
         EUDAQ_ERROR("Cannot read TelescopeFrame");
 
+    eudaq::StandardPlane plane(81, "MuPixLike_DUT", "MuPixLike_DUT");
 
-    eudaq::StandardPlane plane(block_n, "MuPixLike_DUT", "MuPixLike_DUT");
     plane.SetSizeZS(400,25,tf->num_hits());
     for(uint i =0; i < tf->num_hits();++i)
     {
