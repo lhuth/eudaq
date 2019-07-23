@@ -22,6 +22,7 @@ public:
   void DoReset() override;
   void DoStatus() override;
   void RunLoop() override;
+  // comment
 
   static const uint32_t m_id_factory = eudaq::cstr2hash("AidaTluProducer");
 private:
