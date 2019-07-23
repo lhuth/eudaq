@@ -19,8 +19,8 @@ include_directories(${EUDAQ_INCLUDE_DIRS})
 # for the AIDA TLU
 find_package(CACTUS)
 cmake_dependent_option(USER_TLU_BUILD_AIDA "build user/eudet AIDA TLU" ON
-  "CACTUS_FOUND" OFF)
-#set(USER_BUILD_AIDA_TLU ${USER_TLU_BUILD_AIDA})
+  "CACTUS_FOUND" ON)
+# set(USER_BUILD_AIDA_TLU ${USER_TLU_BUILD_AIDA})
 
 # for the EUDET TLU
 find_package(ZestSC1)

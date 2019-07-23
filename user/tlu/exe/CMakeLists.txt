@@ -25,7 +25,7 @@ if(USER_TLU_BUILD_EUDET)
   add_executable(${EXE_EUDET_TLU_NOROOT} src/EudetTluNoRoot.cxx)
   target_link_libraries(${EXE_EUDET_TLU_NOROOT} ${EUDAQ_CORE_LIBRARY} ${USER_HARDWARE_LIBRARY})
   list(APPEND INSTALL_TARGETS ${EXE_EUDET_TLU_NOROOT})
-  
+
   set(EXE_EUDET_TLU_RESET EudetTluReset)
   add_executable(${EXE_EUDET_TLU_RESET} src/EudetTluReset.cxx)
   target_link_libraries(${EXE_EUDET_TLU_RESET} ${EUDAQ_CORE_LIBRARY} ${USER_HARDWARE_LIBRARY})
@@ -33,6 +33,19 @@ if(USER_TLU_BUILD_EUDET)
 else()
   message(STATUS "EUDET TLU stand-alone executables are NOT to be built (USER_BUILD_EUDET_TLU=OFF)")
 endif()
+
+if(USER_TLU_BUILD_AIDA)
+  message(STATUS "Building AIDA TLU stand-alone executables (USER_BUILD_AIDA_TLU=ON)")
+
+  # adding command line interface to AidaTLU
+  set(EXE_AIDA_TLU_CONTROL AidaTluControl)
+  add_executable(${EXE_AIDA_TLU_CONTROL} src/AidaTluControl.cxx)
+  target_link_libraries(${EXE_AIDA_TLU_CONTROL} ${EUDAQ_CORE_LIBRARY} ${USER_HARDWARE_LIBRARY})
+  list(APPEND INSTALL_TARGETS ${EXE_AIDA_TLU_CONTROL})
+else()
+  message(STATUS "AIDA TLU stand-alone executables are NOT to be built (USER_BUILD_AIDA_TLU=OFF)")
+endif()
+
 
 install(TARGETS ${INSTALL_TARGETS}
   DESTINATION bin
