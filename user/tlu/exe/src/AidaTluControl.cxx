@@ -13,6 +13,7 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <map>
 
 class AidaTluControl {
 public:
@@ -35,7 +36,7 @@ AidaTluControl::AidaTluControl(){
 
 //// zusammenfassen
 // Initialize TLU
-void AidaTluControl::DoInitialise(){
+void AidaTluControl::DoStartUp(){
 
     /* Establish a connection with the TLU using IPBus.
        Define the main hardware parameters.
@@ -52,18 +53,16 @@ void AidaTluControl::DoInitialise(){
     m_verbose = 0x1;
 
 
-    // Import I2C addresses for hardware
     // Populate address list for I2C elements
-    //// What of this do I need?
-//    m_tlu->SetI2C_core_addr(ini->Get("I2C_COREEXP_Addr", 0x21));
-//    m_tlu->SetI2C_clockChip_addr(ini->Get("I2C_CLK_Addr", 0x68));
-//    m_tlu->SetI2C_DAC1_addr(ini->Get("I2C_DAC1_Addr",0x13) );
-//    m_tlu->SetI2C_DAC2_addr(ini->Get("I2C_DAC2_Addr",0x1f) );
-//    m_tlu->SetI2C_EEPROM_addr(ini->Get("I2C_ID_Addr", 0x50) );
-//    m_tlu->SetI2C_expander1_addr(ini->Get("I2C_EXP1_Addr",0x74));
-//    m_tlu->SetI2C_expander2_addr(ini->Get("I2C_EXP2_Addr",0x75) );
-//    m_tlu->SetI2C_pwrmdl_addr(ini->Get("I2C_DACModule_Addr",  0x1C), ini->Get("I2C_EXP1Module_Addr",  0x76), ini->Get("I2C_EXP2Module_Addr",  0x77), ini->Get("I2C_pwrId_Addr",  0x51));
-//    m_tlu->SetI2C_disp_addr(ini->Get("I2C_disp_Addr",0x3A));
+    m_tlu->SetI2C_core_addr(0x21);
+    m_tlu->SetI2C_clockChip_addr(0x68);
+    m_tlu->SetI2C_DAC1_addr(0x13);
+    m_tlu->SetI2C_DAC2_addr(0x1f);
+    m_tlu->SetI2C_EEPROM_addr(0x50);
+    m_tlu->SetI2C_expander1_addr(0x74);
+    m_tlu->SetI2C_expander2_addr(0x75);
+    m_tlu->SetI2C_pwrmdl_addr(0x1C, 0x76, 0x77, 0x51);
+    m_tlu->SetI2C_disp_addr(0x3A);
 
     // Initialize TLU hardware
     //// What happens here?
@@ -157,21 +156,54 @@ void AidaTluControl::SetTLUThreshold(double val){
 
 // Measure rate
 int AidaTluControl::DoMeasureRate(double voltage, double threshold, double time){
-    SetPMTVoltage(voltage);
-    SetTLUThreshold(threshold);
+    this->SetPMTVoltage(voltage);
+    this->SetTLUThreshold(threshold);
     // get rate for time
     // return rate
 }
 
+//template <typename T>
+//std::vector<T> linspace(T a, T b, size_t N) {
+//    T h = (b - a) / static_cast<T>(N-1);
+//    std::vector<T> xs(N);
+//    typename std::vector<T>::iterator x;
+//    T val;
+//    for (x = xs.begin(), val = a; x != xs.end(); ++x, val += h)
+//        *x = val;
+//    return xs;
+//}
+
+
 int main(int /*argc*/, char **argv) {
     // array of voltages, array of threshold
+    double voltageMin = 0.;
+    double voltageMax = 1.;
+    double voltageDifference = voltageMax - voltageMin;
+    int numberOfValues = 10;
+    double voltages[numberOfValues];
+
+    for (i = 0; i < numberOfValues; i++){
+        voltages[i] = voltageMin + i * voltageDifference / numberOfValues;
+    }
+
+
     // dictionary for rates
-    // for loop over threshold, save return of DoMeasureRate in dict
+    std::map<double, int> rates;
+
+
+
+    // test:
     AidaTluControl myTlu;
-    myTlu.DoInitialise();
-    myTlu.DoConfigure();
+    myTlu.DoStartUp();
 
     myTlu.SetPMTVoltage(0.5);
+
+
+
+//    // for loop over threshold, save return of DoMeasureRate in dict
+//    for(i = 0; i < numberOfValues; i++){
+//        rates[voltages[i]] = myTlu.DoMeasureRate(voltages[i], threshold, time);
+//    }
 }
 
 
