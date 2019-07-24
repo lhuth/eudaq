@@ -19,14 +19,15 @@ class AidaTluControl {
 public:
     AidaTluControl();
     void DoConfigure();
-    void DoInitialise();
+    void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-    int DoMeasureRate(double voltage, double threshold, double time);
+    std::vector<int> DoMeasureRate(double voltage, double threshold, double time);
 
 private:
     std::unique_ptr<tlu::AidaTluController> m_tlu;
     uint8_t m_verbose;
+    bool m_exit_of_run;
 };
 
 AidaTluControl::AidaTluControl(){
@@ -43,6 +44,8 @@ void AidaTluControl::DoStartUp(){
     */
 
     std::string uhal_conn = "file://../user/eudet/misc/hw_conf/aida_tlu/aida_tlu_address-fw_version_14.xml";
+    //std::string uhal_conn = "file://../user/eudet/misc/hw_conf/aida_tlu/aida_tlu_connection_v24_test.xml";
+
     std::string uhal_node = "fmctlu.udp";
     //std::string uhal_conn;
     //    std::string uhal_node;
@@ -155,9 +158,20 @@ void AidaTluControl::SetTLUThreshold(double val){
 
 
 // Measure rate
-int AidaTluControl::DoMeasureRate(double voltage, double threshold, double time){
+std::vector<int> AidaTluControl::DoMeasureRate(double voltage, double threshold, double time){
     this->SetPMTVoltage(voltage);
     this->SetTLUThreshold(threshold);
+
+    m_exit_of_run = false;
+    sleep(time * 1000); //time in milliseconds
+    m_exit_of_run = true;
+
+    int sl0, sl1, sl2, sl3, sl4, sl5;
+    m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+
+    m_tlu.reset();
+
+    return std::vector{sl0, sl1, sl2, sl3, sl4, sl5};
     // get rate for time
     // return rate
 }
@@ -175,34 +189,35 @@ int AidaTluControl::DoMeasureRate(double voltage, double threshold, double time)
 
 
 int main(int /*argc*/, char **argv) {
-    // array of voltages, array of threshold
-    double voltageMin = 0.;
-    double voltageMax = 1.;
-    double voltageDifference = voltageMax - voltageMin;
+    // array of threshold
+    int time = 20; //time in seconds
+    double voltage = 0.5;
+    double thresholdMin = 0.;
+    double thresholdMax = 1.;
+    double thresholdDifference = thresholdMax - thresholdMin;
     int numberOfValues = 10;
-    double voltages[numberOfValues];
+    double thresholds[numberOfValues];
 
-    for (i = 0; i < numberOfValues; i++){
-        voltages[i] = voltageMin + i * voltageDifference / numberOfValues;
+    for (int i = 0; i < numberOfValues; i++){
+        thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
     }
 
 
     // dictionary for rates
-    std::map<double, int> rates;
-
+    std::map<double, std::vector<int>> rates;
 
 
     // test:
     AidaTluControl myTlu;
     myTlu.DoStartUp();
 
-    myTlu.SetPMTVoltage(0.5);
+    myTlu.SetPMTVoltage(voltage);
 
 
 
 //    // for loop over threshold, save return of DoMeasureRate in dict
-//    for(i = 0; i < numberOfValues; i++){
-//        rates[voltages[i]] = myTlu.DoMeasureRate(voltages[i], threshold, time);
+//    for(int i = 0; i < numberOfValues; i++){
+//        rates[thresholds[i]] = myTlu.DoMeasureRate(voltage, thresholds[i], time);
 //    }
 }
 
