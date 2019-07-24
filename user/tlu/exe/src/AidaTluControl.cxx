@@ -46,7 +46,7 @@ void AidaTluControl::DoStartUp(){
     std::string uhal_conn = "file://../user/eudet/misc/hw_conf/aida_tlu/aida_tlu_address-fw_version_14.xml";
     //std::string uhal_conn = "file://../user/eudet/misc/hw_conf/aida_tlu/aida_tlu_connection_v24_test.xml";
 
-    std::string uhal_node = "fmctlu.udp";
+    std::string uhal_node = "aida_tlu.controlhub";
     //std::string uhal_conn;
     //    std::string uhal_node;
     //    uhal_conn = ini->Get("ConnectionFile", uhal_conn);
@@ -163,15 +163,15 @@ std::vector<int> AidaTluControl::DoMeasureRate(double voltage, double threshold,
     this->SetTLUThreshold(threshold);
 
     m_exit_of_run = false;
-    sleep(time * 1000); //time in milliseconds
+  //  sleep(time * 1000); //time in milliseconds
     m_exit_of_run = true;
 
     int sl0, sl1, sl2, sl3, sl4, sl5;
-    m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+    //m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
 
     m_tlu.reset();
 
-    return std::vector{sl0, sl1, sl2, sl3, sl4, sl5};
+    return {sl0, sl1, sl2, sl3, sl4, sl5};
     // get rate for time
     // return rate
 }
