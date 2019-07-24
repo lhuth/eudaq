@@ -22,12 +22,13 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
+    void Test();
     std::vector<int> DoMeasureRate(double voltage, double threshold, double time);
 
 private:
     std::unique_ptr<tlu::AidaTluController> m_tlu;
     uint8_t m_verbose;
-    bool m_exit_of_run;
+//    bool m_exit_of_run;
 };
 
 AidaTluControl::AidaTluControl(){
@@ -35,7 +36,6 @@ AidaTluControl::AidaTluControl(){
 }
 
 
-//// zusammenfassen
 // Initialize TLU
 void AidaTluControl::DoStartUp(){
 
@@ -43,8 +43,7 @@ void AidaTluControl::DoStartUp(){
        Define the main hardware parameters.
     */
 
-    std::string uhal_conn = "file://../user/eudet/misc/hw_conf/aida_tlu/aida_tlu_address-fw_version_14.xml";
-    //std::string uhal_conn = "file://../user/eudet/misc/hw_conf/aida_tlu/aida_tlu_connection_v24_test.xml";
+    std::string uhal_conn = "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/aida_tlu_connection.xml";
 
     std::string uhal_node = "aida_tlu.controlhub";
     //std::string uhal_conn;
@@ -68,41 +67,37 @@ void AidaTluControl::DoStartUp(){
     m_tlu->SetI2C_disp_addr(0x3A);
 
     // Initialize TLU hardware
-    //// What happens here?
     m_tlu->InitializeI2C(m_verbose);
     m_tlu->InitializeIOexp(m_verbose);
-    //    if (ini->Get("intRefOn", false)){
-    //        m_tlu->InitializeDAC(ini->Get("intRefOn", false), ini->Get("VRefInt", 2.5), m_verbose);
-    //    }
-    //    else{
-    //        m_tlu->InitializeDAC(ini->Get("intRefOn", false), ini->Get("VRefExt", 1.3), m_verbose);
-    //    }
-
-    //    // Initialize the Si5345 clock chip using pre-generated file
-    //    if (ini->Get("CONFCLOCK", true)){
-    //        std::string  clkConfFile;
-    //        std::string defaultCfgFile= "./../user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
-    //        clkConfFile= ini->Get("CLOCK_CFG_FILE", defaultCfgFile);
-    //        if (clkConfFile== defaultCfgFile){
-    //            EUDAQ_WARN("TLU: Could not find the parameter for clock configuration in the INI file. Using the default.");
-    //        }
-    //        int clkres;
-    //        clkres= m_tlu->InitializeClkChip( clkConfFile, m_verbose  );
-    //        if (clkres == -1){
-    //            EUDAQ_ERROR("TLU: clock configuration failed.");
-    //        }
-    //    }
-
-    //    // Reset IPBus registers
-    //    m_tlu->ResetSerdes();
-    //    m_tlu->ResetCounters();
-    //    m_tlu->SetTriggerVeto(1, m_verbose);
-    //    m_tlu->ResetFIFO();
-    //    m_tlu->ResetEventsBuffer();
-
-    //    m_tlu->ResetTimestamp();
+    m_tlu->InitializeDAC(false, 1.3, m_verbose);
 
 
+    // Initialize the Si5345 clock chip using pre-generated file
+    std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
+    int clkres;
+    clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
+    if (clkres == -1){
+        std::cout << "TLU: clock configuration failed." << std::endl;
+    }
+
+
+    // Reset IPBus registers
+    m_tlu->ResetSerdes();
+    m_tlu->ResetCounters();
+
+    m_tlu->SetTriggerVeto(1, m_verbose); // no triggers
+    m_tlu->ResetFIFO();
+    m_tlu->ResetEventsBuffer();
+
+    m_tlu->ResetTimestamp();
+
+
+
+    m_tlu->enableClkLEMO(true, m_verbose);
+
+    m_tlu->SetEnableRecordData((uint32_t)1);
+    m_tlu->GetEventFifoCSR();
+    m_tlu->GetEventFifoFillLevel();
 
 
 }
@@ -119,7 +114,7 @@ void AidaTluControl::DoConfigure(){
     //Set lemo clock
     //// What exactly is set here?
     if(m_verbose > 0) EUDAQ_INFO(" -CLOCK OUTPUT CONFIGURATION");
-    m_tlu->enableClkLEMO(conf->Get("LEMOclk", true), m_verbose);
+
 
     if(m_verbose > 0) EUDAQ_INFO(" -SHUTTER OPERATION MODE");
     m_tlu->SetShutterParameters( (bool)conf->Get("EnableShutterMode",0),
@@ -135,9 +130,8 @@ void AidaTluControl::DoConfigure(){
     m_tlu->SetInternalTriggerFrequency( (int32_t)( conf->Get("InternalTriggerFreq", 0)), m_verbose );
 
     if(m_verbose > 0) EUDAQ_INFO(" -FINALIZING TLU CONFIGURATION");
-    m_tlu->SetEnableRecordData( (uint32_t)(conf->Get("EnableRecordData", 1)) );
-    m_tlu->GetEventFifoCSR();
-    m_tlu->GetEventFifoFillLevel();
+
+
 */
 }
 
@@ -148,52 +142,65 @@ void AidaTluControl::SetPMTVoltage(double val){
 
 // Set TLU threshold
 void AidaTluControl::SetTLUThreshold(double val){
-    m_tlu->SetThresholdValue(0, val , m_verbose);
-    m_tlu->SetThresholdValue(1, val , m_verbose);
-    m_tlu->SetThresholdValue(2, val , m_verbose);
-    m_tlu->SetThresholdValue(3, val , m_verbose);
-    m_tlu->SetThresholdValue(4, val , m_verbose);
-    m_tlu->SetThresholdValue(5, val , m_verbose);
+    std::cout << val << std::endl;
+    m_tlu->SetThresholdValue(7, val , m_verbose); //all channels
 }
 
 
 // Measure rate
 std::vector<int> AidaTluControl::DoMeasureRate(double voltage, double threshold, double time){
-    this->SetPMTVoltage(voltage);
-    this->SetTLUThreshold(threshold);
+    SetPMTVoltage(voltage);
+    SetTLUThreshold(threshold);
 
-    m_exit_of_run = false;
-  //  sleep(time * 1000); //time in milliseconds
-    m_exit_of_run = true;
+//    for (int i; i<10; i++){
+//        int sl0, sl1, sl2, sl3, sl4, sl5;
+//        m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+//        std::cout << sl0, sl1, sl2, sl3, sl4, sl5 << std::endl;
+//        std::this_thread::sleep_for (std::chrono::seconds(1));
+//    }
 
-    int sl0, sl1, sl2, sl3, sl4, sl5;
-    //m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
 
-    m_tlu.reset();
+//    m_tlu.reset();
 
-    return {sl0, sl1, sl2, sl3, sl4, sl5};
+//    return {sl0, sl1, sl2, sl3, sl4, sl5};
     // get rate for time
     // return rate
 }
 
-//template <typename T>
-//std::vector<T> linspace(T a, T b, size_t N) {
-//    T h = (b - a) / static_cast<T>(N-1);
-//    std::vector<T> xs(N);
-//    typename std::vector<T>::iterator x;
-//    T val;
-//    for (x = xs.begin(), val = a; x != xs.end(); ++x, val += h)
-//        *x = val;
-//    return xs;
-//}
+void AidaTluControl::Test(){
+    SetPMTVoltage(1);
+    SetTLUThreshold(-0.04);
+    m_tlu->SetRunActive(1, 1); // reset internal counters
+    m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
+    m_tlu->ReceiveEvents(m_verbose);
+    std::this_thread::sleep_for (std::chrono::seconds(10));
 
+
+    for (int i; i<10; i++){
+        //tlu::fmctludata *data = m_tlu->PopFrontEvent();
+        //std::cout << data->input0 << "  " << data->input1<< "  " << data->input2<< "  " << data->input3<< "  " << data->input4<< "  " << data->input5 << std::endl;
+
+
+        uint32_t sl0, sl1, sl2, sl3, sl4, sl5, post, pt;
+        post = m_tlu->GetPostVetoTriggers();
+        pt=m_tlu->GetPreVetoTriggers();
+        m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+        std::cout << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
+        //std::cout << post << std::endl;
+        //std::cout << pt << std::endl;
+        std::this_thread::sleep_for (std::chrono::seconds(1));
+    }
+    m_tlu->SetTriggerVeto(1, m_verbose);
+    // Set TLU internal logic to stop.
+    m_tlu->SetRunActive(0, 1);
+}
 
 int main(int /*argc*/, char **argv) {
     // array of threshold
     int time = 20; //time in seconds
-    double voltage = 0.5;
-    double thresholdMin = 0.;
-    double thresholdMax = 1.;
+    double voltage = 0.9;
+    double thresholdMin = 0.1;
+    double thresholdMax = 1.3;
     double thresholdDifference = thresholdMax - thresholdMin;
     int numberOfValues = 10;
     double thresholds[numberOfValues];
@@ -210,8 +217,8 @@ int main(int /*argc*/, char **argv) {
     // test:
     AidaTluControl myTlu;
     myTlu.DoStartUp();
+    myTlu.Test();
 
-    myTlu.SetPMTVoltage(voltage);
 
 
 
