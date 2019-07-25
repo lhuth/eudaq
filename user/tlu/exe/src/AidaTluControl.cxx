@@ -16,6 +16,9 @@
 #include <thread>
 #include <map>
 
+// ROOT includes
+// #include <TROOT.h>
+
 //#include "gnuplot-iostream.h"
 
 class AidaTluControl {
@@ -82,6 +85,15 @@ void AidaTluControl::DoStartUp(){
     if (clkres == -1){
         std::cout << "TLU: clock configuration failed." << std::endl;
     }
+
+    // Set trigger stretch
+    std::vector<unsigned int> stretcVec = {(unsigned int)1,
+                     (unsigned int) 1,
+                     (unsigned int) 1,
+                     (unsigned int) 1,
+                     (unsigned int) 1,
+                     (unsigned int) 1};
+    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
 
 
     // Reset IPBus registers
@@ -152,15 +164,21 @@ void AidaTluControl::SetTLUThreshold(double val){
 
 // Measure rate
 std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double threshold, int time){
+
+    uint32_t sl0=0, sl1=0, sl2=0, sl3=0, sl4=0, sl5=0;
+
     SetPMTVoltage(voltage);
     SetTLUThreshold(threshold);
+    std::this_thread::sleep_for (std::chrono::seconds(1));
+    m_tlu->ResetCounters();
+    m_tlu->ResetSerdes();
     m_tlu->SetRunActive(1, 1); // reset internal counters
     m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
     m_tlu->ReceiveEvents(m_verbose);
-    std::this_thread::sleep_for (std::chrono::seconds(time));
-    uint32_t sl0, sl1, sl2, sl3, sl4, sl5;
+    std::this_thread::sleep_for (std::chrono::milliseconds(time*1000));
+    m_tlu->SetTriggerVeto(1, m_verbose); //disable trigger
     m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
-    std::cout << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
+    std::cout << dec << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
 
     m_tlu->SetTriggerVeto(1, m_verbose);
     // Set TLU internal logic to stop.
@@ -203,22 +221,24 @@ int main(int /*argc*/, char **argv) {
     // array of threshold
 
     // Threshold in [-1.3V,=1.3V] with 40e-6V presision
-    //double thresholdMin = -1e-3;
-    //double thresholdMax = -50e-3;
-    //double thresholdDifference = thresholdMax - thresholdMin;
-
-    //double thresholds[numberOfValues];
-
-    //    for (int i = 0; i < numberOfValues; i++){
-    //        thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
-    //    }
+    double thresholdMin = -1.2;
+    double thresholdMax = -0.7;
+    double thresholdDifference = thresholdMax - thresholdMin;
     const int numberOfValues = 10;
-    int time = 30; //time in seconds
+
+    double thresholds[numberOfValues];
+
+        for (int i = 0; i < numberOfValues; i++){
+            thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
+        }
+    // const int numberOfValues = 10;
+    int time = 10; //time in seconds
     double voltage = 0.9;
-    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
-    for (int i = 0; i < 10; i++){
-        thresholds[i] *= -1e-3;
-    }
+//    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
+//    double thresholds[] = {
+//    for (int i = 0; i < 10; i++){
+//        thresholds[i] *= -1e-3;
+//    }
 
 
     // Get Rates:
@@ -243,6 +263,8 @@ int main(int /*argc*/, char **argv) {
 
     }
     outFile.close();
+
+    //TH1F h("Vol")
 
 //    Gnuplot gp;
 
