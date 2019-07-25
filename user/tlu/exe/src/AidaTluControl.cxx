@@ -28,17 +28,23 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-    void Test();
+//    void Test();
     std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
 
 private:
     std::unique_ptr<tlu::AidaTluController> m_tlu;
     uint8_t m_verbose;
+    uint64_t m_starttime;
+    uint64_t m_lasttime;
+    double m_duration;
     //    bool m_exit_of_run;
 };
 
 AidaTluControl::AidaTluControl(){
     m_verbose = 0x0;
+    m_duration = 0;
+    m_starttime = 0;
+    m_lasttime = 0;
 }
 
 
@@ -79,21 +85,21 @@ void AidaTluControl::DoStartUp(){
 
 
     // Initialize the Si5345 clock chip using pre-generated file
-    std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
-    int clkres;
-    clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
-    if (clkres == -1){
-        std::cout << "TLU: clock configuration failed." << std::endl;
-    }
+//    std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
+//    int clkres;
+//    clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
+//    if (clkres == -1){
+//        std::cout << "TLU: clock configuration failed." << std::endl;
+//    }
 
     // Set trigger stretch
-    std::vector<unsigned int> stretcVec = {(unsigned int)1,
-                     (unsigned int) 1,
-                     (unsigned int) 1,
-                     (unsigned int) 1,
-                     (unsigned int) 1,
-                     (unsigned int) 1};
-    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
+//    std::vector<unsigned int> stretcVec = {(unsigned int)1000,
+//                     (unsigned int) 1000,
+//                     (unsigned int) 1000,
+//                     (unsigned int) 1000,
+//                     (unsigned int) 1000,
+//                     (unsigned int) 1000};
+//    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
 
 
     // Reset IPBus registers
@@ -113,7 +119,6 @@ void AidaTluControl::DoStartUp(){
     m_tlu->SetEnableRecordData((uint32_t)1);
     m_tlu->GetEventFifoCSR();
     m_tlu->GetEventFifoFillLevel();
-
 
 }
 
@@ -171,51 +176,65 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
     SetTLUThreshold(threshold);
     std::this_thread::sleep_for (std::chrono::seconds(1));
     m_tlu->ResetCounters();
-    m_tlu->ResetSerdes();
+    //m_tlu->ResetSerdes();
+
+    m_starttime = m_tlu->GetCurrentTimestamp()*25;
+
     m_tlu->SetRunActive(1, 1); // reset internal counters
     m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
     m_tlu->ReceiveEvents(m_verbose);
-    std::this_thread::sleep_for (std::chrono::milliseconds(time*1000));
-    m_tlu->SetTriggerVeto(1, m_verbose); //disable trigger
-    m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
-    std::cout << dec << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
 
-    m_tlu->SetTriggerVeto(1, m_verbose);
+    std::this_thread::sleep_for (std::chrono::milliseconds(time*1000));
+
+    m_tlu->SetTriggerVeto(1, m_verbose); //disable trigger
     // Set TLU internal logic to stop.
     m_tlu->SetRunActive(0, 1);
+    m_lasttime = m_tlu->GetCurrentTimestamp()*25;
+
+    m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+
+
+
+    std::cout << std::dec << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
+
     m_tlu->ResetCounters();
     m_tlu->ResetSerdes();
+
+
+
+    m_duration = double(m_lasttime - m_starttime) / 1000000000; // in seconds
+    std::cout << "Run duration [s]" << m_duration << std::endl;
 
     return {sl0, sl1, sl2, sl3, sl4, sl5};
 }
 
-void AidaTluControl::Test(){
-    SetPMTVoltage(1);
-    SetTLUThreshold(-0.04);
-    m_tlu->SetRunActive(1, 1); // reset internal counters
-    m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
-    m_tlu->ReceiveEvents(m_verbose);
-    std::this_thread::sleep_for (std::chrono::seconds(10));
+//void AidaTluControl::Test(){
+//    SetPMTVoltage(1);
+//    SetTLUThreshold(-0.04);
+//    m_tlu->SetRunActive(1, 1); // reset internal counters
+//    m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
+//    m_tlu->ReceiveEvents(m_verbose);
+//    std::this_thread::sleep_for (std::chrono::seconds(10));
 
 
-    for (int i; i<10; i++){
-        //tlu::fmctludata *data = m_tlu->PopFrontEvent();
-        //std::cout << data->input0 << "  " << data->input1<< "  " << data->input2<< "  " << data->input3<< "  " << data->input4<< "  " << data->input5 << std::endl;
+//    for (int i; i<10; i++){
+//        //tlu::fmctludata *data = m_tlu->PopFrontEvent();
+//        //std::cout << data->input0 << "  " << data->input1<< "  " << data->input2<< "  " << data->input3<< "  " << data->input4<< "  " << data->input5 << std::endl;
 
 
-        uint32_t sl0, sl1, sl2, sl3, sl4, sl5, post, pt;
-        post = m_tlu->GetPostVetoTriggers();
-        pt=m_tlu->GetPreVetoTriggers();
-        m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
-        std::cout << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
-        //std::cout << post << std::endl;
-        //std::cout << pt << std::endl;
-        std::this_thread::sleep_for (std::chrono::seconds(1));
-    }
-    m_tlu->SetTriggerVeto(1, m_verbose);
-    // Set TLU internal logic to stop.
-    m_tlu->SetRunActive(0, 1);
-}
+//        uint32_t sl0, sl1, sl2, sl3, sl4, sl5, post, pt;
+//        post = m_tlu->GetPostVetoTriggers();
+//        pt=m_tlu->GetPreVetoTriggers();
+//        m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+//        std::cout << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
+//        //std::cout << post << std::endl;
+//        //std::cout << pt << std::endl;
+//        std::this_thread::sleep_for (std::chrono::seconds(1));
+//    }
+//    m_tlu->SetTriggerVeto(1, m_verbose);
+//    // Set TLU internal logic to stop.
+//    m_tlu->SetRunActive(0, 1);
+//}
 
 int main(int /*argc*/, char **argv) {
     // array of threshold
@@ -232,7 +251,7 @@ int main(int /*argc*/, char **argv) {
             thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
         }
     // const int numberOfValues = 10;
-    int time = 10; //time in seconds
+    int time = 15; //time in seconds
     double voltage = 0.9;
 //    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
 //    double thresholds[] = {
@@ -247,8 +266,7 @@ int main(int /*argc*/, char **argv) {
 
     myTlu.DoStartUp();
     std::ofstream outFile;
-    outFile.open ("output.txt");
-
+    outFile.open ("output.txt");    
     for (int i = 0; i < numberOfValues; i++){
         rates[i] = myTlu.MeasureRate(voltage, thresholds[i], time);
         std::cout << "Threshold: " << thresholds[i]*1e3 << "mV" << std::endl;
@@ -259,7 +277,7 @@ int main(int /*argc*/, char **argv) {
         std::cout << "_______________________" << std::endl;
 
         for (auto r:rates[i]) outFile << r << ",";
-        outFile << "\n";
+        outFile << "\n";        
 
     }
     outFile.close();
