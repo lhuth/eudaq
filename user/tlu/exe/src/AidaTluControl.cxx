@@ -10,10 +10,13 @@
 #include <memory>
 #include <iostream>
 #include <ostream>
+#include <fstream>
 #include <vector>
 #include <chrono>
 #include <thread>
 #include <map>
+
+//#include "gnuplot-iostream.h"
 
 class AidaTluControl {
 public:
@@ -23,12 +26,12 @@ public:
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
     void Test();
-    std::vector<int> DoMeasureRate(double voltage, double threshold, double time);
+    std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
 
 private:
     std::unique_ptr<tlu::AidaTluController> m_tlu;
     uint8_t m_verbose;
-//    bool m_exit_of_run;
+    //    bool m_exit_of_run;
 };
 
 AidaTluControl::AidaTluControl(){
@@ -148,23 +151,24 @@ void AidaTluControl::SetTLUThreshold(double val){
 
 
 // Measure rate
-std::vector<int> AidaTluControl::DoMeasureRate(double voltage, double threshold, double time){
+std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double threshold, int time){
     SetPMTVoltage(voltage);
     SetTLUThreshold(threshold);
+    m_tlu->SetRunActive(1, 1); // reset internal counters
+    m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
+    m_tlu->ReceiveEvents(m_verbose);
+    std::this_thread::sleep_for (std::chrono::seconds(time));
+    uint32_t sl0, sl1, sl2, sl3, sl4, sl5;
+    m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+    std::cout << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
 
-//    for (int i; i<10; i++){
-//        int sl0, sl1, sl2, sl3, sl4, sl5;
-//        m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
-//        std::cout << sl0, sl1, sl2, sl3, sl4, sl5 << std::endl;
-//        std::this_thread::sleep_for (std::chrono::seconds(1));
-//    }
+    m_tlu->SetTriggerVeto(1, m_verbose);
+    // Set TLU internal logic to stop.
+    m_tlu->SetRunActive(0, 1);
+    m_tlu->ResetCounters();
+    m_tlu->ResetSerdes();
 
-
-//    m_tlu.reset();
-
-//    return {sl0, sl1, sl2, sl3, sl4, sl5};
-    // get rate for time
-    // return rate
+    return {sl0, sl1, sl2, sl3, sl4, sl5};
 }
 
 void AidaTluControl::Test(){
@@ -197,35 +201,65 @@ void AidaTluControl::Test(){
 
 int main(int /*argc*/, char **argv) {
     // array of threshold
-    int time = 20; //time in seconds
-    double voltage = 0.9;
-    double thresholdMin = 0.1;
-    double thresholdMax = 1.3;
-    double thresholdDifference = thresholdMax - thresholdMin;
-    int numberOfValues = 10;
-    double thresholds[numberOfValues];
 
-    for (int i = 0; i < numberOfValues; i++){
-        thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
+    // Threshold in [-1.3V,=1.3V] with 40e-6V presision
+    //double thresholdMin = -1e-3;
+    //double thresholdMax = -50e-3;
+    //double thresholdDifference = thresholdMax - thresholdMin;
+
+    //double thresholds[numberOfValues];
+
+    //    for (int i = 0; i < numberOfValues; i++){
+    //        thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
+    //    }
+    const int numberOfValues = 10;
+    int time = 30; //time in seconds
+    double voltage = 0.9;
+    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
+    for (int i = 0; i < 10; i++){
+        thresholds[i] *= -1e-3;
     }
 
 
-    // dictionary for rates
-    std::map<double, std::vector<int>> rates;
-
-
-    // test:
+    // Get Rates:
     AidaTluControl myTlu;
+    std::vector<std::vector<uint32_t>> rates(numberOfValues, std::vector<uint32_t>(6));
+
     myTlu.DoStartUp();
-    myTlu.Test();
+    std::ofstream outFile;
+    outFile.open ("output.txt");
+
+    for (int i = 0; i < numberOfValues; i++){
+        rates[i] = myTlu.MeasureRate(voltage, thresholds[i], time);
+        std::cout << "Threshold: " << thresholds[i]*1e3 << "mV" << std::endl;
+        //std::cout << "Counts:";
+        //for (auto r:rates) std::cout << r << "   ";
+        //std::cout << std::endl;
+        //std::cout <<rates[i][0] << std::endl;
+        std::cout << "_______________________" << std::endl;
+
+        for (auto r:rates[i]) outFile << r << ",";
+        outFile << "\n";
+
+    }
+    outFile.close();
+
+//    Gnuplot gp;
+
+//    gp << "set xrange [-2:2]\nset yrange [-2:2]\n";
+//            // '-' means read from stdin.  The send1d() function sends data to gnuplot's stdin.
+//            gp << "plot '-' with vectors title 'pts_A'\n";
+//            gp.send1d(pts_A);
+
+
+    return 1;
 
 
 
-
-//    // for loop over threshold, save return of DoMeasureRate in dict
-//    for(int i = 0; i < numberOfValues; i++){
-//        rates[thresholds[i]] = myTlu.DoMeasureRate(voltage, thresholds[i], time);
-//    }
+    //    // for loop over threshold, save return of DoMeasureRate in dict
+    //    for(int i = 0; i < numberOfValues; i++){
+    //        rates[thresholds[i]] = myTlu.DoMeasureRate(voltage, thresholds[i], time);
+    //    }
 }
 
 
