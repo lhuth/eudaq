@@ -28,7 +28,7 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-//    void Test();
+    //    void Test();
     std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
 
 private:
@@ -85,21 +85,21 @@ void AidaTluControl::DoStartUp(){
 
 
     // Initialize the Si5345 clock chip using pre-generated file
-//    std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
-//    int clkres;
-//    clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
-//    if (clkres == -1){
-//        std::cout << "TLU: clock configuration failed." << std::endl;
-//    }
+    //    std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
+    //    int clkres;
+    //    clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
+    //    if (clkres == -1){
+    //        std::cout << "TLU: clock configuration failed." << std::endl;
+    //    }
 
     // Set trigger stretch
-//    std::vector<unsigned int> stretcVec = {(unsigned int)1000,
-//                     (unsigned int) 1000,
-//                     (unsigned int) 1000,
-//                     (unsigned int) 1000,
-//                     (unsigned int) 1000,
-//                     (unsigned int) 1000};
-//    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
+    //    std::vector<unsigned int> stretcVec = {(unsigned int)1000,
+    //                     (unsigned int) 1000,
+    //                     (unsigned int) 1000,
+    //                     (unsigned int) 1000,
+    //                     (unsigned int) 1000,
+    //                     (unsigned int) 1000};
+    //    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
 
 
     // Reset IPBus registers
@@ -176,11 +176,12 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
     SetTLUThreshold(threshold);
     std::this_thread::sleep_for (std::chrono::seconds(1));
     m_tlu->ResetCounters();
-    //m_tlu->ResetSerdes();
+    m_tlu->ResetSerdes();
 
-    m_starttime = m_tlu->GetCurrentTimestamp()*25;
+
 
     m_tlu->SetRunActive(1, 1); // reset internal counters
+    m_starttime = m_tlu->GetCurrentTimestamp()*25;
     m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
     m_tlu->ReceiveEvents(m_verbose);
 
@@ -203,6 +204,8 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 
 
     m_duration = double(m_lasttime - m_starttime) / 1000000000; // in seconds
+    //    std::cout << "Start" << double(m_starttime)/ 1000000000 << std::endl;
+    //    std::cout << "Stop" << double(m_lasttime)/ 1000000000 << std::endl;
     std::cout << "Run duration [s]" << m_duration << std::endl;
 
     return {sl0, sl1, sl2, sl3, sl4, sl5};
@@ -247,17 +250,17 @@ int main(int /*argc*/, char **argv) {
 
     double thresholds[numberOfValues];
 
-        for (int i = 0; i < numberOfValues; i++){
-            thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
-        }
+    for (int i = 0; i < numberOfValues; i++){
+        thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
+    }
     // const int numberOfValues = 10;
-    int time = 15; //time in seconds
+    int time = 10; //time in seconds
     double voltage = 0.9;
-//    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
-//    double thresholds[] = {
-//    for (int i = 0; i < 10; i++){
-//        thresholds[i] *= -1e-3;
-//    }
+    //    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
+    //    double thresholds[] = {
+    //    for (int i = 0; i < 10; i++){
+    //        thresholds[i] *= -1e-3;
+    //    }
 
 
     // Get Rates:
@@ -266,7 +269,7 @@ int main(int /*argc*/, char **argv) {
 
     myTlu.DoStartUp();
     std::ofstream outFile;
-    outFile.open ("output.txt");    
+    outFile.open ("output.txt");
     for (int i = 0; i < numberOfValues; i++){
         rates[i] = myTlu.MeasureRate(voltage, thresholds[i], time);
         std::cout << "Threshold: " << thresholds[i]*1e3 << "mV" << std::endl;
@@ -277,19 +280,19 @@ int main(int /*argc*/, char **argv) {
         std::cout << "_______________________" << std::endl;
 
         for (auto r:rates[i]) outFile << r << ",";
-        outFile << "\n";        
+        outFile << "\n";
 
     }
     outFile.close();
 
     //TH1F h("Vol")
 
-//    Gnuplot gp;
+    //    Gnuplot gp;
 
-//    gp << "set xrange [-2:2]\nset yrange [-2:2]\n";
-//            // '-' means read from stdin.  The send1d() function sends data to gnuplot's stdin.
-//            gp << "plot '-' with vectors title 'pts_A'\n";
-//            gp.send1d(pts_A);
+    //    gp << "set xrange [-2:2]\nset yrange [-2:2]\n";
+    //            // '-' means read from stdin.  The send1d() function sends data to gnuplot's stdin.
+    //            gp << "plot '-' with vectors title 'pts_A'\n";
+    //            gp.send1d(pts_A);
 
 
     return 1;
