@@ -1,6 +1,7 @@
 #include "AidaTluController.hh"
 #include "AidaTluHardware.hh"
 #include "AidaTluPowerModule.hh"
+#include "eudaq/OptionParser.hh"
 
 #include <string>
 #include <fstream>
@@ -36,6 +37,8 @@ private:
     uint8_t m_verbose;
     uint64_t m_starttime;
     uint64_t m_lasttime;
+    int m_nTrgIn;
+
     double m_duration;
     //    bool m_exit_of_run;
 };
@@ -65,6 +68,8 @@ void AidaTluControl::DoStartUp(){
     m_tlu = std::unique_ptr<tlu::AidaTluController>(new tlu::AidaTluController(uhal_conn, uhal_node));
 
     m_verbose = 0x1;
+    m_tlu->DefineConst(0, 6); // 0 DUTs, 6 Triggers
+
 
 
     // Populate address list for I2C elements
@@ -92,14 +97,15 @@ void AidaTluControl::DoStartUp(){
     //        std::cout << "TLU: clock configuration failed." << std::endl;
     //    }
 
-    // Set trigger stretch
-    //    std::vector<unsigned int> stretcVec = {(unsigned int)1000,
-    //                     (unsigned int) 1000,
-    //                     (unsigned int) 1000,
-    //                     (unsigned int) 1000,
-    //                     (unsigned int) 1000,
-    //                     (unsigned int) 1000};
-    //    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
+    //     Set trigger stretch
+
+    std::vector<unsigned int> stretcVec = {(unsigned int) 10,
+                                           (unsigned int) 10,
+                                           (unsigned int) 10,
+                                           (unsigned int) 10,
+                                           (unsigned int) 10,
+                                           (unsigned int) 10};
+    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
 
 
     // Reset IPBus registers
@@ -239,23 +245,57 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 //    m_tlu->SetRunActive(0, 1);
 //}
 
+
+//eudaq::OptionParser op("EUDAQ Command Line FileReader modified for TLU", "2.1", "EUDAQ FileReader (TLU)");
+//eudaq::Option<std::string> file_input(op, "i", "input", "", "string", "input file");
+//eudaq::Option<uint32_t> eventl(op, "e", "event", 0, "uint32_t", "event number low");
+//eudaq::Option<uint32_t> eventh(op, "E", "eventhigh", 0, "uint32_t", "event number high");
+//eudaq::Option<uint32_t> triggerl(op, "tg", "trigger", 0, "uint32_t", "trigger number low");
+//eudaq::Option<uint32_t> triggerh(op, "TG", "triggerhigh", 0, "uint32_t", "trigger number high");
+//eudaq::Option<uint32_t> timestampl(op, "ts", "timestamp", 0, "uint32_t", "timestamp low");
+//eudaq::Option<uint32_t> timestamph(op, "TS", "timestamphigh", 0, "uint32_t", "timestamp high");
+//eudaq::OptionFlag stat(op, "s", "statistics", "enable print of statistics");
+//eudaq::OptionFlag stdev(op, "std", "stdevent", "enable converter of StdEvent");
+
+//op.Parse(argv);
+
+
+
 int main(int /*argc*/, char **argv) {
+    eudaq::OptionParser op("EUDAQ Command Line FileReader modified for TLU", "2.1", "EUDAQ FileReader (TLU)");
+    eudaq::Option<double> thrMin(op, "tl", "thresholdlow", -1.3, "double", "threshold value low [V]");
+    eudaq::Option<double> thrMax(op, "th", "thresholdhigh", -0.1, "double", "threshold value high [V]");
+    eudaq::Option<int> thrNum(op, "tn", "thresholdsteps", 9, "int", "number of threshold steps");
+    eudaq::Option<double> volt(op, "v", "pmtvoltage", 0.9, "double", "PMT voltage [V]");
+    eudaq::Option<int> acqtime(op, "t", "acquisitiontime", 10, "int", "acquisition time");
+
+    try{
+        op.Parse(argv);
+    }
+    catch (...) {
+        return op.HandleMainException();
+    }
+
     // array of threshold
 
     // Threshold in [-1.3V,=1.3V] with 40e-6V presision
-    double thresholdMin = -1.2;
-    double thresholdMax = -0.7;
+    double thresholdMin = thrMin.Value();
+    double thresholdMax = thrMax.Value();
     double thresholdDifference = thresholdMax - thresholdMin;
-    const int numberOfValues = 10;
+    const int numThresholdValues = thrNum.Value();
 
-    double thresholds[numberOfValues];
+    double thresholds[numThresholdValues];
 
-    for (int i = 0; i < numberOfValues; i++){
-        thresholds[i] = thresholdMin + i * thresholdDifference / numberOfValues;
+    if (numThresholdValues < 2) thresholds[0] = thresholdMin;
+    else{
+        for (int i = 0; i < numThresholdValues; i++){
+            thresholds[i] = thresholdMin + i * thresholdDifference / (numThresholdValues-1);
+        }
     }
-    // const int numberOfValues = 10;
-    int time = 10; //time in seconds
-    double voltage = 0.9;
+
+    // const int numThresholdValues = 10;
+    int time = acqtime.Value(); //time in seconds
+    double voltage = volt.Value();
     //    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
     //    double thresholds[] = {
     //    for (int i = 0; i < 10; i++){
@@ -265,12 +305,12 @@ int main(int /*argc*/, char **argv) {
 
     // Get Rates:
     AidaTluControl myTlu;
-    std::vector<std::vector<uint32_t>> rates(numberOfValues, std::vector<uint32_t>(6));
+    std::vector<std::vector<uint32_t>> rates(numThresholdValues, std::vector<uint32_t>(6));
 
     myTlu.DoStartUp();
     std::ofstream outFile;
     outFile.open ("output.txt");
-    for (int i = 0; i < numberOfValues; i++){
+    for (int i = 0; i < numThresholdValues; i++){
         rates[i] = myTlu.MeasureRate(voltage, thresholds[i], time);
         std::cout << "Threshold: " << thresholds[i]*1e3 << "mV" << std::endl;
         //std::cout << "Counts:";
@@ -300,7 +340,7 @@ int main(int /*argc*/, char **argv) {
 
 
     //    // for loop over threshold, save return of DoMeasureRate in dict
-    //    for(int i = 0; i < numberOfValues; i++){
+    //    for(int i = 0; i < numThresholdValues; i++){
     //        rates[thresholds[i]] = myTlu.DoMeasureRate(voltage, thresholds[i], time);
     //    }
 }
