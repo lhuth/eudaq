@@ -18,7 +18,8 @@
 #include <map>
 
 // ROOT includes
-// #include <TROOT.h>
+//#include <TROOT.h>
+//#include <TGraph.h>
 
 //#include "gnuplot-iostream.h"
 
@@ -216,6 +217,22 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 
     return {sl0, sl1, sl2, sl3, sl4, sl5};
 }
+
+
+//AidaTluControl::PlotData(std::vector<double> thresholds, std::vector rate){
+
+//}
+
+//AidaTluControl::TestPlot(){
+//    Int_t n = 20;
+//    Double_t x[n], y[n];
+//    for (Int_t i = 0; i < n; i++){
+//        x[i] = i*0.1;
+//        y[i] = 10 * sin(x[i]=0.2);
+//    }
+
+//    TGra
+//}
 
 //void AidaTluControl::Test(){
 //    SetPMTVoltage(1);
