@@ -47,6 +47,14 @@ if(USER_TLU_BUILD_AIDA)
   add_executable(${EXE_AIDA_TLU_CONTROL} src/AidaTluControl.cxx)
   target_link_libraries(${EXE_AIDA_TLU_CONTROL} ${EUDAQ_CORE_LIBRARY} ${USER_HARDWARE_LIBRARY} ${ROOT_LIBRARIES})
   list(APPEND INSTALL_TARGETS ${EXE_AIDA_TLU_CONTROL})
+
+  # adding command line interface to AidaTLU
+  set(EXE_AIDA_CLI AidaClInterface)
+  add_executable(${EXE_AIDA_CLI} src/AidaClInterface.cxx)
+  target_link_libraries(${EXE_AIDA_CLI} ${EUDAQ_CORE_LIBRARY} ${USER_HARDWARE_LIBRARY})
+  list(APPEND INSTALL_TARGETS ${EXE_AIDA_CLI})
+  
+
 else()
   message(STATUS "AIDA TLU stand-alone executables are NOT to be built (USER_BUILD_AIDA_TLU=OFF)")
 endif()
