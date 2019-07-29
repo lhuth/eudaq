@@ -36,7 +36,11 @@ endif()
 
 if(USER_TLU_BUILD_AIDA)
   message(STATUS "Building AIDA TLU stand-alone executables (USER_BUILD_AIDA_TLU=ON)")
+  list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
+  find_package(ROOT)
   include_directories(${ROOT_INCLUDE_DIR})
+  include(${ROOT_USE_FILE})
+  add_definitions(-DEUDAQ_LIB_ROOT6)
 
   # adding command line interface to AidaTLU
   set(EXE_AIDA_TLU_CONTROL AidaTluControl)

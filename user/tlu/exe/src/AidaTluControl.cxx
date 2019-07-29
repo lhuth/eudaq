@@ -19,14 +19,13 @@
 
 // ROOT includes
 //#include <TROOT.h>
-#include <TGraph.h>
+//#include <TGraph.h>
 
 //#include "gnuplot-iostream.h"
 
 class AidaTluControl {
 public:
     AidaTluControl();
-    void DoConfigure();
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
@@ -98,7 +97,7 @@ void AidaTluControl::DoStartUp(){
     //        std::cout << "TLU: clock configuration failed." << std::endl;
     //    }
 
-    //     Set trigger stretch
+    // Set trigger stretch
 
     std::vector<unsigned int> stretcVec = {(unsigned int) 10,
                                            (unsigned int) 10,
@@ -129,38 +128,6 @@ void AidaTluControl::DoStartUp(){
 
 }
 
-// Configure TLU
-void AidaTluControl::DoConfigure(){
-    /*
-    auto conf = GetConfiguration();
-
-    EUDAQ_INFO("CONFIG ID: " + std::to_string(conf->Get("confid", 0)));
-    m_verbose = abs(conf->Get("verbose", 0));
-    EUDAQ_INFO("TLU VERBOSITY SET TO: " + std::to_string(m_verbose));
-
-    //Set lemo clock
-    //// What exactly is set here?
-    if(m_verbose > 0) EUDAQ_INFO(" -CLOCK OUTPUT CONFIGURATION");
-
-
-    if(m_verbose > 0) EUDAQ_INFO(" -SHUTTER OPERATION MODE");
-    m_tlu->SetShutterParameters( (bool)conf->Get("EnableShutterMode",0),
-                                 (int8_t)(conf->Get("ShutterSource",0)),
-                                 (int32_t)(conf->Get("ShutterOnTime",0)),
-                                 (int32_t)(conf->Get("ShutterOffTime",0)),
-                                 (int32_t)(conf->Get("ShutterVetoOffTime",0)),
-                                 (int32_t)(conf->Get("InternalShutterInterval",0)),
-                                  m_verbose);
-
-
-    if(m_verbose > 0) EUDAQ_INFO(" -AUTO TRIGGER SETTINGS");
-    m_tlu->SetInternalTriggerFrequency( (int32_t)( conf->Get("InternalTriggerFreq", 0)), m_verbose );
-
-    if(m_verbose > 0) EUDAQ_INFO(" -FINALIZING TLU CONFIGURATION");
-
-
-*/
-}
 
 // Set PMT Voltage
 void AidaTluControl::SetPMTVoltage(double val){
@@ -200,7 +167,6 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
     m_lasttime = m_tlu->GetCurrentTimestamp()*25;
 
     m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
-
 
 
     std::cout << std::dec << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
@@ -261,20 +227,6 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 //    // Set TLU internal logic to stop.
 //    m_tlu->SetRunActive(0, 1);
 //}
-
-
-//eudaq::OptionParser op("EUDAQ Command Line FileReader modified for TLU", "2.1", "EUDAQ FileReader (TLU)");
-//eudaq::Option<std::string> file_input(op, "i", "input", "", "string", "input file");
-//eudaq::Option<uint32_t> eventl(op, "e", "event", 0, "uint32_t", "event number low");
-//eudaq::Option<uint32_t> eventh(op, "E", "eventhigh", 0, "uint32_t", "event number high");
-//eudaq::Option<uint32_t> triggerl(op, "tg", "trigger", 0, "uint32_t", "trigger number low");
-//eudaq::Option<uint32_t> triggerh(op, "TG", "triggerhigh", 0, "uint32_t", "trigger number high");
-//eudaq::Option<uint32_t> timestampl(op, "ts", "timestamp", 0, "uint32_t", "timestamp low");
-//eudaq::Option<uint32_t> timestamph(op, "TS", "timestamphigh", 0, "uint32_t", "timestamp high");
-//eudaq::OptionFlag stat(op, "s", "statistics", "enable print of statistics");
-//eudaq::OptionFlag stdev(op, "std", "stdevent", "enable converter of StdEvent");
-
-//op.Parse(argv);
 
 
 
