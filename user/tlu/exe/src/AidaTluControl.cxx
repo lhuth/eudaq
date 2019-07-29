@@ -19,7 +19,7 @@
 
 // ROOT includes
 //#include <TROOT.h>
-//#include <TGraph.h>
+#include <TGraph.h>
 
 //#include "gnuplot-iostream.h"
 
