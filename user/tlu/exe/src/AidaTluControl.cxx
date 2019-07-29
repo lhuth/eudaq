@@ -18,8 +18,13 @@
 #include <map>
 
 // ROOT includes
-//#include <TROOT.h>
-//#include <TGraph.h>
+#include <TROOT.h>
+#include <TGraph.h>
+#include <TCanvas.h>
+#include <TBrowser.h>
+#include <TFrame.h>
+#include <TFile.h>
+#include <TApplication.h>
 
 //#include "gnuplot-iostream.h"
 
@@ -29,6 +34,7 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
+    void TestPlot(Int_t numThresholdValues, Double_t *threshold, Double_t *rate);
     //    void Test();
     std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
 
@@ -79,7 +85,7 @@ void AidaTluControl::DoStartUp(){
     m_tlu->SetI2C_DAC2_addr(0x1f);
     m_tlu->SetI2C_EEPROM_addr(0x50);
     m_tlu->SetI2C_expander1_addr(0x74);
-    m_tlu->SetI2C_expander2_addr(0x75);
+    m_tlu->SetI2C_expander2_addr(0);
     m_tlu->SetI2C_pwrmdl_addr(0x1C, 0x76, 0x77, 0x51);
     m_tlu->SetI2C_disp_addr(0x3A);
 
@@ -99,13 +105,13 @@ void AidaTluControl::DoStartUp(){
 
     // Set trigger stretch
 
-    std::vector<unsigned int> stretcVec = {(unsigned int) 10,
-                                           (unsigned int) 10,
-                                           (unsigned int) 10,
-                                           (unsigned int) 10,
-                                           (unsigned int) 10,
-                                           (unsigned int) 10};
-    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
+    //    std::vector<unsigned int> stretcVec = {(unsigned int) 10,
+    //                                           (unsigned int) 10,
+    //                                           (unsigned int) 10,
+    //                                           (unsigned int) 10,
+    //                                           (unsigned int) 10,
+    //                                           (unsigned int) 10};
+    //    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
 
 
     // Reset IPBus registers
@@ -115,6 +121,7 @@ void AidaTluControl::DoStartUp(){
     m_tlu->SetTriggerVeto(1, m_verbose); // no triggers
     m_tlu->ResetFIFO();
     m_tlu->ResetEventsBuffer();
+    m_tlu->ResetBoard();
 
     m_tlu->ResetTimestamp();
 
@@ -189,16 +196,53 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 
 //}
 
-//AidaTluControl::TestPlot(){
-//    Int_t n = 20;
-//    Double_t x[n], y[n];
-//    for (Int_t i = 0; i < n; i++){
-//        x[i] = i*0.1;
-//        y[i] = 10 * sin(x[i]=0.2);
-//    }
+//std::vector<std::vector<uint32_t>> rates(10, std::vector<uint32_t>(6));
+//std::string outString;
+//std::ifstream infile;
+//infile.open("/opt/eudaq2/bin/output_30s.txt");
 
-//    TGra
+//int channelNo = 0;
+//while(std::getline(infile,outString)){
+//    std::istringstream csvStream(outString);
+//    //std::cout << outString << std::endl;
+//    std::string outElement;
+//    int thresholdNo = 0;
+//    while (std::getline(csvStream, outElement, ',')){
+
+//        rates[thresholdNo][channelNo] = std::stoi(outElement);
+//        std::cout << thresholdNo << channelNo << std::endl;
+//        std::cout << rates[0][thresholdNo] << std::endl;
+//        std::cout<<"______________________" << std::endl;
+//        thresholdNo += 1;
+
+
+
+//    }
+//    channelNo += 1;
 //}
+//for (int thresholdNo = 0; thresholdNo <10; thresholdNo++){
+//    std::cout << rates[0][thresholdNo] << std::endl;
+//}
+
+//infile.close();
+
+void AidaTluControl::TestPlot(Int_t numThresholdValues, Double_t *threshold, Double_t *rate){
+    TApplication *myApp = new TApplication("myApp", 0, 0);
+
+    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate);
+    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1000,700);
+    //gr1->SetFillColor(40);
+    gr1->Draw("A*");
+    gr1->SetMarkerStyle(20);
+    gr1->SetMarkerSize(1);
+    gr1->SetMarkerColor(kRed + 1);
+
+    c1->Update();
+//    c1->GetFrame()->SetBorderSize(12);
+    c1->Modified();
+
+    myApp->Run();
+}
 
 //void AidaTluControl::Test(){
 //    SetPMTVoltage(1);
@@ -275,7 +319,7 @@ int main(int /*argc*/, char **argv) {
     // Get Rates:
     AidaTluControl myTlu;
     std::vector<std::vector<uint32_t>> rates(numThresholdValues, std::vector<uint32_t>(6));
-
+    /*
     myTlu.DoStartUp();
     std::ofstream outFile;
     outFile.open ("output.txt");
@@ -293,6 +337,17 @@ int main(int /*argc*/, char **argv) {
 
     }
     outFile.close();
+
+*/
+    Int_t n = 10;
+    //Double_t x[n] = {4,5,6,7,8,9,10,20,30,40};
+    //Double_t y[n] = {40294,2879,26,120,29,9,8,60,8,8};
+
+    Double_t x[n] = {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0};
+    Double_t y[n] = {100000, 10000, 1000, 100, 10, 5, 4, 3 ,3 ,2};
+
+    myTlu.TestPlot(n, x, y);
+    myTlu.TestPlot(n, x, y);
 
     //TH1F h("Vol")
 
