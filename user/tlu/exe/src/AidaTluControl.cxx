@@ -14,8 +14,10 @@
 #include <fstream>
 #include <vector>
 #include <chrono>
+#include <ctime>
 #include <thread>
 #include <map>
+#include <math.h>
 
 // ROOT includes
 #include <TROOT.h>
@@ -25,6 +27,7 @@
 #include <TFrame.h>
 #include <TFile.h>
 #include <TApplication.h>
+#include <TGaxis.h>
 
 //#include "gnuplot-iostream.h"
 
@@ -35,7 +38,8 @@ public:
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
     void PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate);
-    void PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2);
+    //void PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2);
+    void PlotMultiple(std::string filename);
     //    void Test();
     std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
 
@@ -197,48 +201,188 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 
 //}
 
-//std::vector<std::vector<uint32_t>> rates(10, std::vector<uint32_t>(6));
-//std::string outString;
-//std::ifstream infile;
-//infile.open("/opt/eudaq2/bin/output_30s.txt");
-
-//int channelNo = 0;
-//while(std::getline(infile,outString)){
-//    std::istringstream csvStream(outString);
-//    //std::cout << outString << std::endl;
-//    std::string outElement;
-//    int thresholdNo = 0;
-//    while (std::getline(csvStream, outElement, ',')){
-
-//        rates[thresholdNo][channelNo] = std::stoi(outElement);
-//        std::cout << thresholdNo << channelNo << std::endl;
-//        std::cout << rates[0][thresholdNo] << std::endl;
-//        std::cout<<"______________________" << std::endl;
-//        thresholdNo += 1;
 
 
+//void AidaTluControl::PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2){
+//    TApplication *myApp = new TApplication("myApp", 0, 0);
+//    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,700);
+//    c1->Divide(2,1);
 
+//    c1->cd(1);
+//    TGraph *gr1 = new TGraph (numThresholdValues,threshold1,rate1);
+
+//    gr1->Draw("A*");
+//    gr1->SetMarkerStyle(20);
+//    gr1->SetMarkerSize(1);
+//    gr1->SetMarkerColor(kRed + 1);
+//    gr1->SetTitle("Channel 1; Threshold / V; Rate / Hz");
+
+
+//    c1->cd(2);
+//    TGraph *gr2 = new TGraph (numThresholdValues,threshold2,rate2);
+
+//    gr2->Draw("A*");
+//    gr2->SetMarkerStyle(20);
+//    gr2->SetMarkerSize(1);
+//    gr2->SetMarkerColor(kRed + 1);
+//    gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
+
+//    c1->Update();
+////    c1->GetFrame()->SetBorderSize(120);
+//    c1->Modified();
+
+//    myApp->Run();
+//}
+
+
+std::vector<std::vector<uint32_t>> rates(10, std::vector<uint32_t>(6));
+std::string outString;
+
+/*
+int channelNo = 0;
+while(std::getline(infile,outString)){
+    std::istringstream csvStream(outString);
+    //std::cout << outString << std::endl;
+    std::string outElement;
+    int thresholdNo = 0;
+    while (std::getline(csvStream, outElement, ',')){
+
+        rates[thresholdNo][channelNo] = std::stoi(outElement);
+        std::cout << thresholdNo << channelNo << std::endl;
+        std::cout << rates[0][thresholdNo] << std::endl;
+        std::cout<<"______________________" << std::endl;
+        thresholdNo += 1;
+
+
+
+    }
+    channelNo += 1;
+}
+for (int thresholdNo = 0; thresholdNo <10; thresholdNo++){
+    std::cout << rates[0][thresholdNo] << std::endl;
+}
+infile.close();*/
+
+//istringstream iss;
+
+//string value = "32 40 50 80 902";
+
+//    iss.str (value); //what does this do???
+//    for (int i = 0; i < 5; i++) {
+//    string val;
+//        iss >> val;
+//    cout << i << endl << val <<endl;
 //    }
-//    channelNo += 1;
-//}
-//for (int thresholdNo = 0; thresholdNo <10; thresholdNo++){
-//    std::cout << rates[0][thresholdNo] << std::endl;
+
+//    return 0;
 //}
 
-//infile.close();
-void AidaTluControl::PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2){
+
+void AidaTluControl::PlotMultiple(std::string filename){
+    std::ifstream infile;
+    infile.open(filename);
+    std::string line;
+    int skiplines = 6;
+    int noColumns = 7;
+    int lineCounter = 0;
+    int numThresholdValues = 9;
+
+    Double_t threshold[9]; //TODO: Remove hot fix!!
+    Double_t rate[noColumns-1][9];
+
+    // read file
+    if (infile.is_open())
+    {
+        while ( getline (infile,line) )
+        {
+            if (lineCounter >= skiplines){
+                std::cout << line << std::endl;
+                std::istringstream lineS;
+                lineS.str(line);
+
+                for (int i = 0; i < noColumns; i++){
+                    std::string val;
+                    lineS >> val;
+                    if (i == 0){
+                        threshold[lineCounter - skiplines] = std::stod(val);
+                        std::cout << threshold[lineCounter - skiplines] << '\n';
+                    }
+                    else{
+                        rate[i-1][lineCounter - skiplines] = std::stod(val);
+                        std::cout << rate[i-1][lineCounter - skiplines] << '\n';
+                    }
+
+                }
+
+
+
+                //std::string outElement;
+//                while (std::getline((std::istringstream)line, outElement, '\t')){
+//                    std::cout << outElement << '\n';
+//                }
+
+
+            }
+            lineCounter++;
+
+        }
+
+        infile.close();
+    }
+
+
+
+
+    else std::cout << "Unable to open file";
+
+
+
+//    TGaxis::SetMaxDigits(2);
     TApplication *myApp = new TApplication("myApp", 0, 0);
     TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,700);
-    c1->Divide(2,1);
+    c1->Divide(3,2);
+
 
     c1->cd(1);
-    TGraph *gr1 = new TGraph (numThresholdValues,threshold1,rate1);
-
+    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate[0]);
     gr1->Draw("A*");
+    gr1->SetTitle("Channel 1; Threshold / V; Rate / Hz");
+
+    c1->cd(2);
+    TGraph *gr2 = new TGraph (numThresholdValues,threshold,rate[1]);
+    gr2->Draw("A*");
+    gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
+
+    c1->cd(3);
+    TGraph *gr3 = new TGraph (numThresholdValues,threshold,rate[2]);
+    gr3->Draw("A*");
+    gr3->SetTitle("Channel 3; Threshold / V; Rate / Hz");
+
+    c1->cd(4);
+    TGraph *gr4 = new TGraph (numThresholdValues,threshold,rate[3]);
+    gr4->Draw("A*");
+    gr4->SetTitle("Channel 4; Threshold / V; Rate / Hz");
+
+    c1->cd(5);
+    TGraph *gr5 = new TGraph (numThresholdValues,threshold,rate[4]);
+    gr5->Draw("A*");
+    gr5->SetTitle("Channel 5; Threshold / V; Rate / Hz");
+
+    c1->cd(6);
+    TGraph *gr6 = new TGraph (numThresholdValues,threshold,rate[5]);
+    gr6->Draw("A*");
+    gr6->SetTitle("Channel 6; Threshold / V; Rate / Hz");
+
+
+
+
+//    c1->SaveAs();
+
+    /*
     gr1->SetMarkerStyle(20);
     gr1->SetMarkerSize(1);
     gr1->SetMarkerColor(kRed + 1);
-    gr1->SetTitle("Channel 1; Threshold / V; Rate / Hz");
+
 
 
     c1->cd(2);
@@ -250,29 +394,26 @@ void AidaTluControl::PlotMultiple(Int_t numThresholdValues, Double_t *threshold1
     gr2->SetMarkerColor(kRed + 1);
     gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
 
+    */
     c1->Update();
-//    c1->GetFrame()->SetBorderSize(120);
+    //    c1->GetFrame()->SetBorderSize(120);
     c1->Modified();
 
     myApp->Run();
+
+
 }
-
-//void AidaTluControl::PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate){
-
-
-//    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate);
-
-//    gr1->Draw("A*");
-//    gr1->SetMarkerStyle(20);
-//    gr1->SetMarkerSize(1);
-//    gr1->SetMarkerColor(kRed + 1);
+void AidaTluControl::PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate){
 
 
+    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate);
 
+    gr1->Draw("A*");
+    gr1->SetMarkerStyle(20);
+    gr1->SetMarkerSize(1);
+    gr1->SetMarkerColor(kRed + 1);
 
-
-
-//}
+}
 
 //void AidaTluControl::Test(){
 //    SetPMTVoltage(1);
@@ -328,7 +469,7 @@ int main(int /*argc*/, char **argv) {
     const int numThresholdValues = thrNum.Value();
     int time = acqtime.Value(); //time in seconds
     double voltage = volt.Value();
-    std::string filename = name.Value() + ".txt";
+    const std::string filename = name.Value() + ".txt";
     std::cout << filename <<std::endl;
 
     // create array of thresholds
@@ -344,14 +485,14 @@ int main(int /*argc*/, char **argv) {
 
     // Get Rates:
     AidaTluControl myTlu;
-    std::vector<std::vector<uint32_t>> rates(numThresholdValues, std::vector<uint32_t>(6));
+    std::vector<std::vector<double>> rates(numThresholdValues, std::vector<double>(6));
     //std::vector<std::vector<uint32_t>> rates;
 
     std::cout << rates.size() << "   " << rates[0].size() << std::endl;
     for (int i = 0; i<9; i++){
-        uint32_t j = i+1;
+        double j = i+1;
         //std::cout << rates[i][0]
-        rates[i] = {j,j,j,j,j,j};
+        rates[i] = {exp(j),2*exp(j),3*exp(j),4*exp(j),5*exp(j),6*exp(j)};
     }
 
     std::cout << "fine" << std::endl;
@@ -373,14 +514,32 @@ int main(int /*argc*/, char **argv) {
 
     }*/
 
+    // write output File
+
+    auto now = std::chrono::system_clock::now();
+    std::time_t timeNow = std::chrono::system_clock::to_time_t(now);
+    outFile << "Date:\t" << std::ctime(&timeNow) << "\n";
+    outFile << "PMT Voltage [V]:\t   " << voltage << "\n";
+    outFile << "Acquisition Time [s]\t:   " << time << "\n" << "\n";
+
+    outFile << "Thr [V]\t\t";
+    for (int i = 0; i < 6; i++){
+        outFile << "PMT " << i+1 << " [Hz]\t";
+    }
+    outFile << "\n";
+
+
     for (int i = 0; i < numThresholdValues; i++){
-        for (auto r:rates[i]) outFile << r << "   ";
+        outFile << thresholds[i] << "\t";
+        for (auto r:rates[i]) outFile << r << "\t";
         outFile << "\n";
     }
 
     outFile.close();
 
-    Int_t n = 10;
+    myTlu.PlotMultiple(filename);
+    /*
+    Int_t n = 9;
     //Double_t x[n] = {4,5,6,7,8,9,10,20,30,40};
     //Double_t y[n] = {40294,2879,26,120,29,9,8,60,8,8};
 
@@ -397,6 +556,7 @@ int main(int /*argc*/, char **argv) {
     for (Int_t i = 0; i < n; i++){
         y2[i] = y[i] /2; //transfer no of counts into rate
     }
+    */
     /*
     myTlu.PlotData(n, x, y);
 
