@@ -34,7 +34,8 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-    void TestPlot(Int_t numThresholdValues, Double_t *threshold, Double_t *rate);
+    void PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate);
+    void PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2);
     //    void Test();
     std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
 
@@ -225,24 +226,53 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 //}
 
 //infile.close();
-
-void AidaTluControl::TestPlot(Int_t numThresholdValues, Double_t *threshold, Double_t *rate){
+void AidaTluControl::PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2){
     TApplication *myApp = new TApplication("myApp", 0, 0);
+    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,700);
+    c1->Divide(2,1);
 
-    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate);
-    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1000,700);
-    //gr1->SetFillColor(40);
+    c1->cd(1);
+    TGraph *gr1 = new TGraph (numThresholdValues,threshold1,rate1);
+
     gr1->Draw("A*");
     gr1->SetMarkerStyle(20);
     gr1->SetMarkerSize(1);
     gr1->SetMarkerColor(kRed + 1);
+    gr1->SetTitle("Channel 1; Threshold / V; Rate / Hz");
+
+
+    c1->cd(2);
+    TGraph *gr2 = new TGraph (numThresholdValues,threshold2,rate2);
+
+    gr2->Draw("A*");
+    gr2->SetMarkerStyle(20);
+    gr2->SetMarkerSize(1);
+    gr2->SetMarkerColor(kRed + 1);
+    gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
 
     c1->Update();
-//    c1->GetFrame()->SetBorderSize(12);
+//    c1->GetFrame()->SetBorderSize(120);
     c1->Modified();
 
     myApp->Run();
 }
+
+//void AidaTluControl::PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate){
+
+
+//    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate);
+
+//    gr1->Draw("A*");
+//    gr1->SetMarkerStyle(20);
+//    gr1->SetMarkerSize(1);
+//    gr1->SetMarkerColor(kRed + 1);
+
+
+
+
+
+
+//}
 
 //void AidaTluControl::Test(){
 //    SetPMTVoltage(1);
@@ -281,6 +311,7 @@ int main(int /*argc*/, char **argv) {
     eudaq::Option<int> thrNum(op, "tn", "thresholdsteps", 9, "int", "number of threshold steps");
     eudaq::Option<double> volt(op, "v", "pmtvoltage", 0.9, "double", "PMT voltage [V]");
     eudaq::Option<int> acqtime(op, "t", "acquisitiontime", 10, "int", "acquisition time");
+    eudaq::Option<std::string> name(op, "f", "filename", "output", "string", "filename");
 
     try{
         op.Parse(argv);
@@ -289,14 +320,18 @@ int main(int /*argc*/, char **argv) {
         return op.HandleMainException();
     }
 
-    // array of threshold
 
     // Threshold in [-1.3V,=1.3V] with 40e-6V presision
     double thresholdMin = thrMin.Value();
     double thresholdMax = thrMax.Value();
     double thresholdDifference = thresholdMax - thresholdMin;
     const int numThresholdValues = thrNum.Value();
+    int time = acqtime.Value(); //time in seconds
+    double voltage = volt.Value();
+    std::string filename = name.Value() + ".txt";
+    std::cout << filename <<std::endl;
 
+    // create array of thresholds
     double thresholds[numThresholdValues];
 
     if (numThresholdValues < 2) thresholds[0] = thresholdMin;
@@ -306,24 +341,25 @@ int main(int /*argc*/, char **argv) {
         }
     }
 
-    // const int numThresholdValues = 10;
-    int time = acqtime.Value(); //time in seconds
-    double voltage = volt.Value();
-    //    double thresholds[10] = {4, 5, 6, 7, 8, 9,10,20,30,40}; //values in mV
-    //    double thresholds[] = {
-    //    for (int i = 0; i < 10; i++){
-    //        thresholds[i] *= -1e-3;
-    //    }
-
 
     // Get Rates:
     AidaTluControl myTlu;
     std::vector<std::vector<uint32_t>> rates(numThresholdValues, std::vector<uint32_t>(6));
-    /*
-    myTlu.DoStartUp();
+    //std::vector<std::vector<uint32_t>> rates;
+
+    std::cout << rates.size() << "   " << rates[0].size() << std::endl;
+    for (int i = 0; i<9; i++){
+        uint32_t j = i+1;
+        //std::cout << rates[i][0]
+        rates[i] = {j,j,j,j,j,j};
+    }
+
+    std::cout << "fine" << std::endl;
+
+    //myTlu.DoStartUp();
     std::ofstream outFile;
-    outFile.open ("output.txt");
-    for (int i = 0; i < numThresholdValues; i++){
+    outFile.open (filename);
+    /*for (int i = 0; i < numThresholdValues; i++){
         rates[i] = myTlu.MeasureRate(voltage, thresholds[i], time);
         std::cout << "Threshold: " << thresholds[i]*1e3 << "mV" << std::endl;
         //std::cout << "Counts:";
@@ -332,22 +368,42 @@ int main(int /*argc*/, char **argv) {
         //std::cout <<rates[i][0] << std::endl;
         std::cout << "_______________________" << std::endl;
 
-        for (auto r:rates[i]) outFile << r << ",";
+        for (auto r:rates[i]) outFile << r << "   ";
         outFile << "\n";
 
+    }*/
+
+    for (int i = 0; i < numThresholdValues; i++){
+        for (auto r:rates[i]) outFile << r << "   ";
+        outFile << "\n";
     }
+
     outFile.close();
 
-*/
     Int_t n = 10;
     //Double_t x[n] = {4,5,6,7,8,9,10,20,30,40};
     //Double_t y[n] = {40294,2879,26,120,29,9,8,60,8,8};
 
     Double_t x[n] = {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0};
+    Int_t t = 30; //time in s
     Double_t y[n] = {100000, 10000, 1000, 100, 10, 5, 4, 3 ,3 ,2};
 
-    myTlu.TestPlot(n, x, y);
-    myTlu.TestPlot(n, x, y);
+
+    for (Int_t i = 0; i < n; i++){
+        y[i] /= t; //transfer no of counts into rate
+    }
+
+    Double_t y2[n];
+    for (Int_t i = 0; i < n; i++){
+        y2[i] = y[i] /2; //transfer no of counts into rate
+    }
+    /*
+    myTlu.PlotData(n, x, y);
+
+
+    myTlu.PlotData(n, x, y2);
+    */
+    //myTlu.PlotMultiple(n, x, y, x, y2);
 
     //TH1F h("Vol")
 
@@ -361,18 +417,4 @@ int main(int /*argc*/, char **argv) {
 
     return 1;
 
-
-
-    //    // for loop over threshold, save return of DoMeasureRate in dict
-    //    for(int i = 0; i < numThresholdValues; i++){
-    //        rates[thresholds[i]] = myTlu.DoMeasureRate(voltage, thresholds[i], time);
-    //    }
 }
-
-
-/* I need:  - Init
-            - Config
-            - voltage setter
-            - threshold setter
-            - data collector
-*/

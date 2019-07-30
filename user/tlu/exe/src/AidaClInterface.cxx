@@ -71,29 +71,28 @@ void AidaTluControl::DoStartUp(){
     // Populate address list for I2C elements
     m_tlu->SetI2C_core_addr(0x21);
     m_tlu->SetI2C_clockChip_addr(0x68);
-
-
     m_tlu->SetI2C_DAC1_addr(0x13);
     m_tlu->SetI2C_DAC2_addr(0x1f);
     m_tlu->SetI2C_EEPROM_addr(0x50);
     m_tlu->SetI2C_expander1_addr(0x74);
-    m_tlu->SetI2C_expander2_addr(0);
+    m_tlu->SetI2C_expander2_addr(75);
     m_tlu->SetI2C_pwrmdl_addr(0x1C, 0x76, 0x77, 0x51);
     m_tlu->SetI2C_disp_addr(0x3A);
-
     // Initialize TLU hardware
     m_tlu->InitializeI2C(m_verbose);
     m_tlu->InitializeIOexp(m_verbose);
     m_tlu->InitializeDAC(false, 1.3, m_verbose);
 
-
+    m_tlu->ResetEventsBuffer();
+    m_tlu->enableClkLEMO(false,m_verbose);
+    m_tlu->SetRunActive(false,m_verbose);
     // Initialize the Si5345 clock chip using pre-generated file
-       std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu_clk_config.txt";
-	std::cout << defaultCfgFile <<std::endl; 
-       int clkres = m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
-        if (clkres == -1){
-            std::cout << "TLU: clock configuration failed." << std::endl;
-        }
+//       std::string defaultCfgFile= "file:///opt/firmware_AIDA/bitFiles/TLU_CLK_Config_v1e.txt";
+//	std::cout << defaultCfgFile <<std::endl;
+//       int clkres = m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
+//        if (clkres == -1){
+//            std::cout << "TLU: clock configuration failed." << std::endl;
+//        }
 
 	// Set trigger stretch
 
@@ -109,20 +108,17 @@ void AidaTluControl::DoStartUp(){
     // Reset IPBus registers
     m_tlu->ResetSerdes();
     m_tlu->ResetCounters();
-
     m_tlu->SetTriggerVeto(1, m_verbose); // no triggers
     m_tlu->ResetFIFO();
     m_tlu->ResetEventsBuffer();
-    m_tlu->ResetBoard();
-
     m_tlu->ResetTimestamp();
 
 
 
-    m_tlu->enableClkLEMO(true, m_verbose);
 
-    m_tlu->SetEnableRecordData((uint32_t)1);
-    m_tlu->GetEventFifoCSR();
+    //m_tlu->SetEnableRecordData((uint32_t)1);
+    std::cout << "-!-!-!-!-!-!- "<< m_tlu->GetEventFifoCSR() <<std::endl;
+    m_tlu->ReceiveEvents(m_verbose);
     m_tlu->GetEventFifoFillLevel();
 
 }
@@ -224,10 +220,10 @@ int main(int /*argc*/, char **argv) {
     std::vector<std::vector<uint32_t>> rates(numThresholdValues, std::vector<uint32_t>(6));
     
     myTlu.DoStartUp();
-    myTlu.SetTLUThreshold(1.0);
- std::vector<uint32_t> vals;
-for(double i =0; i<1; i+=0.1)
-	vals = myTlu.MeasureRate(0.8,i,4);
+//    myTlu.SetTLUThreshold(1.0);
+// std::vector<uint32_t> vals;
+//for(double i =0; i<1; i+=0.1)
+//	vals = myTlu.MeasureRate(0.8,i,4);
     return 1;
 
 }
