@@ -37,11 +37,8 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-    void PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate);
-    //void PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2);
-    void PlotMultiple(std::string filename);
-    //    void Test();
-    std::vector<uint32_t> MeasureRate(double voltage, double threshold, int time);
+    void PlotMultiple(int numThresholdValues, int numTriggerInputs, std::string filename);
+    std::vector<double> MeasureRate(int numTriggerInputs, std::vector<bool> connection, double voltage, double threshold, int time);
 
 private:
     std::unique_ptr<tlu::AidaTluController> m_tlu;
@@ -97,6 +94,7 @@ void AidaTluControl::DoStartUp(){
     // Initialize TLU hardware
     m_tlu->InitializeI2C(m_verbose);
     m_tlu->InitializeIOexp(m_verbose);
+    // 1.3V = reference voltage
     m_tlu->InitializeDAC(false, 1.3, m_verbose);
 
 
@@ -118,6 +116,9 @@ void AidaTluControl::DoStartUp(){
     //                                           (unsigned int) 10};
     //    m_tlu->SetPulseStretchPack(stretcVec, m_verbose);
 
+    // Set trigger mask (high,low)
+    // MIGHT BE ADJUSTED!!
+    m_tlu->SetTriggerMask((uint32_t)0xFFFF,  (uint32_t)0xFFFE);
 
     // Reset IPBus registers
     m_tlu->ResetSerdes();
@@ -126,7 +127,7 @@ void AidaTluControl::DoStartUp(){
     m_tlu->SetTriggerVeto(1, m_verbose); // no triggers
     m_tlu->ResetFIFO();
     m_tlu->ResetEventsBuffer();
-    m_tlu->ResetBoard();
+    //m_tlu->ResetBoard();
 
     m_tlu->ResetTimestamp();
 
@@ -154,9 +155,13 @@ void AidaTluControl::SetTLUThreshold(double val){
 
 
 // Measure rate
-std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double threshold, int time){
+std::vector<double> AidaTluControl::MeasureRate(int numTriggerInputs, std::vector<bool> connectionBool, double voltage, double threshold, int time){
 
-    uint32_t sl0=0, sl1=0, sl2=0, sl3=0, sl4=0, sl5=0;
+    std::vector<uint32_t> sl={0,0,0,0,0,0};
+    // Output: First for: TLU, last: Trigger Rate (pre & post veto)
+    // Convert String input into bool input & count trigger inputs
+
+    std::vector<double> output(numTriggerInputs + 2, 0);
 
     SetPMTVoltage(voltage);
     SetTLUThreshold(threshold);
@@ -178,10 +183,12 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
     m_tlu->SetRunActive(0, 1);
     m_lasttime = m_tlu->GetCurrentTimestamp()*25;
 
-    m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
+    m_tlu->GetScaler(sl[0], sl[1], sl[2], sl[3], sl[4], sl[5]);
+    output[numTriggerInputs - 2] = m_tlu->GetPreVetoTriggers();
+    output[numTriggerInputs - 1] = m_tlu->GetPostVetoTriggers();
 
 
-    std::cout << std::dec << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
+    std::cout << std::dec << sl[0] << "  " << sl[1]<< "  " << sl[2]<< "  " << sl[3]<< "  " << sl[4]<< "  " << sl[5] << std::endl;
 
     m_tlu->ResetCounters();
     m_tlu->ResetSerdes();
@@ -189,106 +196,35 @@ std::vector<uint32_t> AidaTluControl::MeasureRate(double voltage, double thresho
 
 
     m_duration = double(m_lasttime - m_starttime) / 1000000000; // in seconds
-    //    std::cout << "Start" << double(m_starttime)/ 1000000000 << std::endl;
-    //    std::cout << "Stop" << double(m_lasttime)/ 1000000000 << std::endl;
     std::cout << "Run duration [s]" << m_duration << std::endl;
 
-    return {sl0, sl1, sl2, sl3, sl4, sl5};
-}
-
-
-//AidaTluControl::PlotData(std::vector<double> thresholds, std::vector rate){
-
-//}
-
-
-
-//void AidaTluControl::PlotMultiple(Int_t numThresholdValues, Double_t *threshold1, Double_t *rate1, Double_t *threshold2, Double_t *rate2){
-//    TApplication *myApp = new TApplication("myApp", 0, 0);
-//    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,700);
-//    c1->Divide(2,1);
-
-//    c1->cd(1);
-//    TGraph *gr1 = new TGraph (numThresholdValues,threshold1,rate1);
-
-//    gr1->Draw("A*");
-//    gr1->SetMarkerStyle(20);
-//    gr1->SetMarkerSize(1);
-//    gr1->SetMarkerColor(kRed + 1);
-//    gr1->SetTitle("Channel 1; Threshold / V; Rate / Hz");
-
-
-//    c1->cd(2);
-//    TGraph *gr2 = new TGraph (numThresholdValues,threshold2,rate2);
-
-//    gr2->Draw("A*");
-//    gr2->SetMarkerStyle(20);
-//    gr2->SetMarkerSize(1);
-//    gr2->SetMarkerColor(kRed + 1);
-//    gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
-
-//    c1->Update();
-////    c1->GetFrame()->SetBorderSize(120);
-//    c1->Modified();
-
-//    myApp->Run();
-//}
-
-
-std::vector<std::vector<uint32_t>> rates(10, std::vector<uint32_t>(6));
-std::string outString;
-
-/*
-int channelNo = 0;
-while(std::getline(infile,outString)){
-    std::istringstream csvStream(outString);
-    //std::cout << outString << std::endl;
-    std::string outElement;
-    int thresholdNo = 0;
-    while (std::getline(csvStream, outElement, ',')){
-
-        rates[thresholdNo][channelNo] = std::stoi(outElement);
-        std::cout << thresholdNo << channelNo << std::endl;
-        std::cout << rates[0][thresholdNo] << std::endl;
-        std::cout<<"______________________" << std::endl;
-        thresholdNo += 1;
-
-
-
+    int i = 0;
+    for (int k = 0; k < 6; k++){
+        if (connectionBool[k]){
+            output[i] = sl[k];
+            i++;
+        }
     }
-    channelNo += 1;
+
+    return {output};
 }
-for (int thresholdNo = 0; thresholdNo <10; thresholdNo++){
-    std::cout << rates[0][thresholdNo] << std::endl;
-}
-infile.close();*/
-
-//istringstream iss;
-
-//string value = "32 40 50 80 902";
-
-//    iss.str (value); //what does this do???
-//    for (int i = 0; i < 5; i++) {
-//    string val;
-//        iss >> val;
-//    cout << i << endl << val <<endl;
-//    }
-
-//    return 0;
-//}
 
 
-void AidaTluControl::PlotMultiple(std::string filename){
+
+void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, std::string filename){
+
+
     std::ifstream infile;
+    // TODO: Remove hard code
+    //std::string filename_ = "test.txt";
     infile.open(filename);
     std::string line;
-    int skiplines = 6;
-    int noColumns = 7;
+    int skiplines = 7;
+    int noColumns = numTriggerInputs + 2; //+2 for Pro & PostVetoTrigger (not respecting threshold column)
     int lineCounter = 0;
-    int numThresholdValues = 9;
 
-    Double_t threshold[9]; //TODO: Remove hot fix!!
-    Double_t rate[noColumns-1][9];
+    Double_t threshold[numThresholdValues];
+    Double_t rate[noColumns][numThresholdValues];
 
     // read file
     if (infile.is_open())
@@ -300,7 +236,7 @@ void AidaTluControl::PlotMultiple(std::string filename){
                 std::istringstream lineS;
                 lineS.str(line);
 
-                for (int i = 0; i < noColumns; i++){
+                for (int i = 0; i < noColumns + 1; i++){
                     std::string val;
                     lineS >> val;
                     if (i == 0){
@@ -311,26 +247,12 @@ void AidaTluControl::PlotMultiple(std::string filename){
                         rate[i-1][lineCounter - skiplines] = std::stod(val);
                         std::cout << rate[i-1][lineCounter - skiplines] << '\n';
                     }
-
                 }
-
-
-
-                //std::string outElement;
-//                while (std::getline((std::istringstream)line, outElement, '\t')){
-//                    std::cout << outElement << '\n';
-//                }
-
-
             }
             lineCounter++;
-
         }
-
         infile.close();
     }
-
-
 
 
     else std::cout << "Unable to open file";
@@ -339,110 +261,40 @@ void AidaTluControl::PlotMultiple(std::string filename){
 
 //    TGaxis::SetMaxDigits(2);
     TApplication *myApp = new TApplication("myApp", 0, 0);
-    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,700);
-    c1->Divide(3,2);
+    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,900);
 
+    if (noColumns == 1) c1->Divide(1,1);
+    else if (noColumns == 2) c1->Divide(2,1);
+    else if (noColumns == 3) c1->Divide(3,1);
+    else if (noColumns == 4) c1->Divide(2,2);
+    else if (noColumns == 5) c1->Divide(3,2);
+    else if (noColumns == 6) c1->Divide(3,2);
+    else if (noColumns > 6) c1->Divide(3,3);
+    else c1->Divide(5,3);
 
-    c1->cd(1);
-    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate[0]);
-    gr1->Draw("A*");
-    gr1->SetTitle("Channel 1; Threshold / V; Rate / Hz");
+    TGraph *gr[noColumns];
 
-    c1->cd(2);
-    TGraph *gr2 = new TGraph (numThresholdValues,threshold,rate[1]);
-    gr2->Draw("A*");
-    gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
-
-    c1->cd(3);
-    TGraph *gr3 = new TGraph (numThresholdValues,threshold,rate[2]);
-    gr3->Draw("A*");
-    gr3->SetTitle("Channel 3; Threshold / V; Rate / Hz");
-
-    c1->cd(4);
-    TGraph *gr4 = new TGraph (numThresholdValues,threshold,rate[3]);
-    gr4->Draw("A*");
-    gr4->SetTitle("Channel 4; Threshold / V; Rate / Hz");
-
-    c1->cd(5);
-    TGraph *gr5 = new TGraph (numThresholdValues,threshold,rate[4]);
-    gr5->Draw("A*");
-    gr5->SetTitle("Channel 5; Threshold / V; Rate / Hz");
-
-    c1->cd(6);
-    TGraph *gr6 = new TGraph (numThresholdValues,threshold,rate[5]);
-    gr6->Draw("A*");
-    gr6->SetTitle("Channel 6; Threshold / V; Rate / Hz");
-
-
+    for (int i = 0; i < noColumns; i++){
+        c1->cd(i+1);
+        gr[i] = new TGraph (numThresholdValues,threshold,rate[i]);
+        gr[i]->Draw("AL*");
+        gr[i]->SetMarkerStyle(20);
+        gr[i]->SetMarkerSize(0.5);
+        gr[i]->SetMarkerColor(kRed + 2);
+        std::string title = std::string("Channel ") + std::to_string(i+1) + std::string("; Threshold / V; Rate / Hz");
+        gr[i]->SetTitle(title.c_str());
+    }
 
 
 //    c1->SaveAs();
 
-    /*
-    gr1->SetMarkerStyle(20);
-    gr1->SetMarkerSize(1);
-    gr1->SetMarkerColor(kRed + 1);
-
-
-
-    c1->cd(2);
-    TGraph *gr2 = new TGraph (numThresholdValues,threshold2,rate2);
-
-    gr2->Draw("A*");
-    gr2->SetMarkerStyle(20);
-    gr2->SetMarkerSize(1);
-    gr2->SetMarkerColor(kRed + 1);
-    gr2->SetTitle("Channel 2; Threshold / V; Rate / Hz");
-
-    */
     c1->Update();
-    //    c1->GetFrame()->SetBorderSize(120);
     c1->Modified();
 
     myApp->Run();
 
 
 }
-void AidaTluControl::PlotData(Int_t numThresholdValues, Double_t *threshold, Double_t *rate){
-
-
-    TGraph *gr1 = new TGraph (numThresholdValues,threshold,rate);
-
-    gr1->Draw("A*");
-    gr1->SetMarkerStyle(20);
-    gr1->SetMarkerSize(1);
-    gr1->SetMarkerColor(kRed + 1);
-
-}
-
-//void AidaTluControl::Test(){
-//    SetPMTVoltage(1);
-//    SetTLUThreshold(-0.04);
-//    m_tlu->SetRunActive(1, 1); // reset internal counters
-//    m_tlu->SetTriggerVeto(0, m_verbose); //enable trigger
-//    m_tlu->ReceiveEvents(m_verbose);
-//    std::this_thread::sleep_for (std::chrono::seconds(10));
-
-
-//    for (int i; i<10; i++){
-//        //tlu::fmctludata *data = m_tlu->PopFrontEvent();
-//        //std::cout << data->input0 << "  " << data->input1<< "  " << data->input2<< "  " << data->input3<< "  " << data->input4<< "  " << data->input5 << std::endl;
-
-
-//        uint32_t sl0, sl1, sl2, sl3, sl4, sl5, post, pt;
-//        post = m_tlu->GetPostVetoTriggers();
-//        pt=m_tlu->GetPreVetoTriggers();
-//        m_tlu->GetScaler(sl0, sl1, sl2, sl3, sl4, sl5);
-//        std::cout << sl0 << "  " << sl1<< "  " << sl2<< "  " << sl3<< "  " << sl4<< "  " << sl5 << std::endl;
-//        //std::cout << post << std::endl;
-//        //std::cout << pt << std::endl;
-//        std::this_thread::sleep_for (std::chrono::seconds(1));
-//    }
-//    m_tlu->SetTriggerVeto(1, m_verbose);
-//    // Set TLU internal logic to stop.
-//    m_tlu->SetRunActive(0, 1);
-//}
-
 
 
 int main(int /*argc*/, char **argv) {
@@ -453,6 +305,7 @@ int main(int /*argc*/, char **argv) {
     eudaq::Option<double> volt(op, "v", "pmtvoltage", 0.9, "double", "PMT voltage [V]");
     eudaq::Option<int> acqtime(op, "t", "acquisitiontime", 10, "int", "acquisition time");
     eudaq::Option<std::string> name(op, "f", "filename", "output", "string", "filename");
+    eudaq::Option<std::string> con(op, "c", "connectionmap", "110000", "string", "connection map");
 
     try{
         op.Parse(argv);
@@ -470,7 +323,17 @@ int main(int /*argc*/, char **argv) {
     int time = acqtime.Value(); //time in seconds
     double voltage = volt.Value();
     const std::string filename = name.Value() + ".txt";
-    std::cout << filename <<std::endl;
+    if (filename == "output.txt") std::cout << "CAUTION: FILENAME IS SET TO DEFAULT. DANGER OF DATA LOSS!" <<std::endl;
+    std::string connection = con.Value();
+
+    int numTriggerInputs = 0;
+    std::vector<bool> connectionBool(6, false);
+    for (int i = 0; i < 6; i++){
+        if(connection[i] == '1'){
+            numTriggerInputs++;
+            connectionBool[i] = true;
+        }
+    }
 
     // create array of thresholds
     double thresholds[numThresholdValues];
@@ -485,34 +348,33 @@ int main(int /*argc*/, char **argv) {
 
     // Get Rates:
     AidaTluControl myTlu;
-    std::vector<std::vector<double>> rates(numThresholdValues, std::vector<double>(6));
-    //std::vector<std::vector<uint32_t>> rates;
+    std::vector<std::vector<double>> rates(numThresholdValues, std::vector<double>(numTriggerInputs + 2));
 
-    std::cout << rates.size() << "   " << rates[0].size() << std::endl;
-    for (int i = 0; i<9; i++){
-        double j = i+1;
-        //std::cout << rates[i][0]
-        rates[i] = {exp(j),2*exp(j),3*exp(j),4*exp(j),5*exp(j),6*exp(j)};
-    }
-
-    std::cout << "fine" << std::endl;
-
-    //myTlu.DoStartUp();
     std::ofstream outFile;
     outFile.open (filename);
-    /*for (int i = 0; i < numThresholdValues; i++){
-        rates[i] = myTlu.MeasureRate(voltage, thresholds[i], time);
-        std::cout << "Threshold: " << thresholds[i]*1e3 << "mV" << std::endl;
-        //std::cout << "Counts:";
-        //for (auto r:rates) std::cout << r << "   ";
-        //std::cout << std::endl;
-        //std::cout <<rates[i][0] << std::endl;
-        std::cout << "_______________________" << std::endl;
 
-        for (auto r:rates[i]) outFile << r << "   ";
-        outFile << "\n";
+    bool tluConnected = true;
+    if(tluConnected){
+        myTlu.DoStartUp();
+        for (int i = 0; i < numThresholdValues; i++){
+            rates[i] = myTlu.MeasureRate(numTriggerInputs, connectionBool, voltage, thresholds[i], time);
+            //for (auto r:rates[i]) outFile << r << "   ";
+            //outFile << "\n";
 
-    }*/
+        }
+    }
+
+    else{
+        // JUST FOR TEST
+        for (int i = 0; i<9; i++){
+            double j = i+1;
+            //std::cout << rates[i][0]
+            rates[i] = {exp(j),2*exp(j),3*exp(j),4*exp(j)};
+        }
+    }
+
+
+
 
     // write output File
 
@@ -523,56 +385,24 @@ int main(int /*argc*/, char **argv) {
     outFile << "Acquisition Time [s]\t:   " << time << "\n" << "\n";
 
     outFile << "Thr [V]\t\t";
-    for (int i = 0; i < 6; i++){
+    for (int i = 0; i < numTriggerInputs; i++){
         outFile << "PMT " << i+1 << " [Hz]\t";
     }
+    outFile << "PreVeto [Hz]\t";
+    outFile << "PostVeto [Hz]\t";
     outFile << "\n";
 
 
     for (int i = 0; i < numThresholdValues; i++){
-        outFile << thresholds[i] << "\t";
-        for (auto r:rates[i]) outFile << r << "\t";
+        outFile << thresholds[i] << "\t\t";
+        for (auto r:rates[i]) outFile << r << "\t\t";
         outFile << "\n";
     }
 
     outFile.close();
 
-    myTlu.PlotMultiple(filename);
-    /*
-    Int_t n = 9;
-    //Double_t x[n] = {4,5,6,7,8,9,10,20,30,40};
-    //Double_t y[n] = {40294,2879,26,120,29,9,8,60,8,8};
+    myTlu.PlotMultiple(numThresholdValues, numTriggerInputs, filename);
 
-    Double_t x[n] = {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0};
-    Int_t t = 30; //time in s
-    Double_t y[n] = {100000, 10000, 1000, 100, 10, 5, 4, 3 ,3 ,2};
-
-
-    for (Int_t i = 0; i < n; i++){
-        y[i] /= t; //transfer no of counts into rate
-    }
-
-    Double_t y2[n];
-    for (Int_t i = 0; i < n; i++){
-        y2[i] = y[i] /2; //transfer no of counts into rate
-    }
-    */
-    /*
-    myTlu.PlotData(n, x, y);
-
-
-    myTlu.PlotData(n, x, y2);
-    */
-    //myTlu.PlotMultiple(n, x, y, x, y2);
-
-    //TH1F h("Vol")
-
-    //    Gnuplot gp;
-
-    //    gp << "set xrange [-2:2]\nset yrange [-2:2]\n";
-    //            // '-' means read from stdin.  The send1d() function sends data to gnuplot's stdin.
-    //            gp << "plot '-' with vectors title 'pts_A'\n";
-    //            gp.send1d(pts_A);
 
 
     return 1;
