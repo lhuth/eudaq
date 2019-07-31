@@ -216,8 +216,8 @@ void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, 
 
     std::ifstream infile;
     // TODO: Remove hard code
-    //std::string filename_ = "test.txt";
-    infile.open(filename);
+    std::string filename_ = "test.txt";
+    infile.open(filename_);
     std::string line;
     int skiplines = 7;
     int noColumns = numTriggerInputs + 2; //+2 for Pro & PostVetoTrigger (not respecting threshold column)
@@ -257,9 +257,35 @@ void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, 
 
     else std::cout << "Unable to open file";
 
+    Double_t firstDer[noColumns][numThresholdValues];
+    //Double_t thresholdFirstDer[numThresholdValues - 1] = threshold.pop_back();
+    for (int i = 0; i < noColumns; i++){
+        for (int j = 0; j < numThresholdValues - 1; j++){
+            firstDer[i][j] =  rate[i][j] - rate[i][j+1];
+        }
+        firstDer[i][numThresholdValues-1] = firstDer[i][numThresholdValues-2];
+    }
+
+//    Double_t secDer[noColumns][numThresholdValues];
+//    //Double_t thresholdsecDer[numThresholdValues - 1] = threshold.pop_back();
+//    for (int i = 0; i < noColumns; i++){
+//        for (int j = 0; j < numThresholdValues - 1; j++){
+//            secDer[i][j] =  firstDer[i][j] - firstDer[i][j+1];
+//        }
+//        secDer[i][numThresholdValues-1] = secDer[i][numThresholdValues-2];
+//    }
 
 
-//    TGaxis::SetMaxDigits(2);
+    Double_t secDer[noColumns][numThresholdValues];
+    //Double_t thresholdsecDer[numThresholdValues - 1] = threshold.pop_back();
+    for (int i = 0; i < noColumns; i++){
+        for (int j = 1; j < numThresholdValues - 1; j++){
+            secDer[i][j] =  rate[i][j+1] - 2.0*rate[i][j] + rate[i][j-1];
+        }
+        secDer[i][numThresholdValues-1] = secDer[i][numThresholdValues-2];
+    }
+
+    //    TGaxis::SetMaxDigits(2);
     TApplication *myApp = new TApplication("myApp", 0, 0);
     TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,900);
 
@@ -273,20 +299,31 @@ void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, 
     else c1->Divide(5,3);
 
     TGraph *gr[noColumns];
+    TGraph *gr2[noColumns];
+    TGraph *gr3[noColumns];
 
     for (int i = 0; i < noColumns; i++){
         c1->cd(i+1);
+   /*
         gr[i] = new TGraph (numThresholdValues,threshold,rate[i]);
         gr[i]->Draw("AL*");
+
         gr[i]->SetMarkerStyle(20);
         gr[i]->SetMarkerSize(0.5);
         gr[i]->SetMarkerColor(kRed + 2);
         std::string title = std::string("Channel ") + std::to_string(i+1) + std::string("; Threshold / V; Rate / Hz");
         gr[i]->SetTitle(title.c_str());
+*/
+      /*  gr2[i] = new TGraph (numThresholdValues,threshold,firstDer[i]);
+        gr2[i]->Draw("AL*");*/
+
+        gr3[i] = new TGraph (numThresholdValues,threshold,secDer[i]);
+        gr3[i]->Draw("A*");
+
     }
 
 
-//    c1->SaveAs();
+    //    c1->SaveAs();
 
     c1->Update();
     c1->Modified();
@@ -323,7 +360,7 @@ int main(int /*argc*/, char **argv) {
     int time = acqtime.Value(); //time in seconds
     double voltage = volt.Value();
     const std::string filename = name.Value() + ".txt";
-    if (filename == "output.txt") std::cout << "CAUTION: FILENAME IS SET TO DEFAULT. DANGER OF DATA LOSS!" <<std::endl;
+    if (filename == "output.txt") std::cout << "---------------CAUTION: FILENAME IS SET TO DEFAULT. DANGER OF DATA LOSS!---------------" <<std::endl;
     std::string connection = con.Value();
 
     int numTriggerInputs = 0;
@@ -353,7 +390,7 @@ int main(int /*argc*/, char **argv) {
     std::ofstream outFile;
     outFile.open (filename);
 
-    bool tluConnected = true;
+    bool tluConnected = false;
     if(tluConnected){
         myTlu.DoStartUp();
         for (int i = 0; i < numThresholdValues; i++){
