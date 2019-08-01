@@ -28,6 +28,10 @@
 #include <TFile.h>
 #include <TApplication.h>
 #include <TGaxis.h>
+#include <TF1.h>
+#include <TLatex.h>
+#include <TLegend.h>
+
 
 //#include "gnuplot-iostream.h"
 
@@ -37,8 +41,9 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-    void PlotMultiple(int numThresholdValues, int numTriggerInputs, std::string filename);
+    std::vector<double> GetOptimalThreshold(int numThresholdValues, int numTriggerInputs, std::string filename);
     std::vector<double> MeasureRate(int numTriggerInputs, std::vector<bool> connection, double voltage, double threshold, int time);
+
 
 private:
     std::unique_ptr<tlu::AidaTluController> m_tlu;
@@ -149,7 +154,6 @@ void AidaTluControl::SetPMTVoltage(double val){
 
 // Set TLU threshold
 void AidaTluControl::SetTLUThreshold(double val){
-    std::cout << val << std::endl;
     m_tlu->SetThresholdValue(7, val , m_verbose); //all channels
 }
 
@@ -210,21 +214,19 @@ std::vector<double> AidaTluControl::MeasureRate(int numTriggerInputs, std::vecto
 }
 
 
+std::vector<double> AidaTluControl::GetOptimalThreshold(int numThresholdValues, int numTriggerInputs, std::string filename){
 
-void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, std::string filename){
-
-
+    // Open File with data and write them into arrays
     std::ifstream infile;
     // TODO: Remove hard code
-    std::string filename_ = "test.txt";
+    std::string filename_ = "test_few.txt";
     infile.open(filename_);
     std::string line;
-    int skiplines = 7;
-    int noColumns = numTriggerInputs + 2; //+2 for Pro & PostVetoTrigger (not respecting threshold column)
+    int skiplines = 2;
     int lineCounter = 0;
 
     Double_t threshold[numThresholdValues];
-    Double_t rate[noColumns][numThresholdValues];
+    Double_t rate[numTriggerInputs][numThresholdValues];
 
     // read file
     if (infile.is_open())
@@ -232,20 +234,17 @@ void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, 
         while ( getline (infile,line) )
         {
             if (lineCounter >= skiplines){
-                std::cout << line << std::endl;
                 std::istringstream lineS;
                 lineS.str(line);
 
-                for (int i = 0; i < noColumns + 1; i++){
+                for (int i = 0; i < numTriggerInputs + 1; i++){
                     std::string val;
                     lineS >> val;
                     if (i == 0){
                         threshold[lineCounter - skiplines] = std::stod(val);
-                        std::cout << threshold[lineCounter - skiplines] << '\n';
                     }
                     else{
                         rate[i-1][lineCounter - skiplines] = std::stod(val);
-                        std::cout << rate[i-1][lineCounter - skiplines] << '\n';
                     }
                 }
             }
@@ -253,85 +252,136 @@ void AidaTluControl::PlotMultiple(int numThresholdValues, int numTriggerInputs, 
         }
         infile.close();
     }
-
-
     else std::cout << "Unable to open file";
 
-    Double_t firstDer[noColumns][numThresholdValues];
-    //Double_t thresholdFirstDer[numThresholdValues - 1] = threshold.pop_back();
-    for (int i = 0; i < noColumns; i++){
+    // Calculate linearized derivative of rate
+    Double_t derivative[numTriggerInputs][numThresholdValues];
+    for (int i = 0; i < numTriggerInputs; i++){
         for (int j = 0; j < numThresholdValues - 1; j++){
-            firstDer[i][j] =  rate[i][j] - rate[i][j+1];
+            derivative[i][j] =  rate[i][j] - rate[i][j+1];
         }
-        firstDer[i][numThresholdValues-1] = firstDer[i][numThresholdValues-2];
+        derivative[i][numThresholdValues-1] = derivative[i][numThresholdValues-2]; //extrapolate last point
     }
 
-//    Double_t secDer[noColumns][numThresholdValues];
-//    //Double_t thresholdsecDer[numThresholdValues - 1] = threshold.pop_back();
-//    for (int i = 0; i < noColumns; i++){
-//        for (int j = 0; j < numThresholdValues - 1; j++){
-//            secDer[i][j] =  firstDer[i][j] - firstDer[i][j+1];
-//        }
-//        secDer[i][numThresholdValues-1] = secDer[i][numThresholdValues-2];
-//    }
+    //Plot Data and determine optimum
 
-
-    Double_t secDer[noColumns][numThresholdValues];
-    //Double_t thresholdsecDer[numThresholdValues - 1] = threshold.pop_back();
-    for (int i = 0; i < noColumns; i++){
-        for (int j = 1; j < numThresholdValues - 1; j++){
-            secDer[i][j] =  rate[i][j+1] - 2.0*rate[i][j] + rate[i][j-1];
-        }
-        secDer[i][numThresholdValues-1] = secDer[i][numThresholdValues-2];
-    }
-
-    //    TGaxis::SetMaxDigits(2);
+    std::vector<double> optimalThreshold(numTriggerInputs);
     TApplication *myApp = new TApplication("myApp", 0, 0);
-    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 200,10,1400,900);
+    TCanvas *c1 = new TCanvas("c1", "Graph Draw Options", 0,10,940,1200);
+    TCanvas *c2 = new TCanvas("c2", "Graph Draw Options", 980,10,940,1200);
 
-    if (noColumns == 1) c1->Divide(1,1);
-    else if (noColumns == 2) c1->Divide(2,1);
-    else if (noColumns == 3) c1->Divide(3,1);
-    else if (noColumns == 4) c1->Divide(2,2);
-    else if (noColumns == 5) c1->Divide(3,2);
-    else if (noColumns == 6) c1->Divide(3,2);
-    else if (noColumns > 6) c1->Divide(3,3);
+    if (numTriggerInputs == 1) c1->Divide(1,1);
+    else if (numTriggerInputs == 2) c1->Divide(2,1);
+    else if (numTriggerInputs == 3) c1->Divide(3,1);
+    else if (numTriggerInputs == 4) c1->Divide(2,2);
+    else if (numTriggerInputs == 5) c1->Divide(3,2);
+    else if (numTriggerInputs == 6) c1->Divide(3,2);
+    else if (numTriggerInputs > 6) c1->Divide(3,3);
     else c1->Divide(5,3);
 
-    TGraph *gr[noColumns];
-    TGraph *gr2[noColumns];
-    TGraph *gr3[noColumns];
+    if (numTriggerInputs == 1) c2->Divide(1,1);
+    else if (numTriggerInputs == 2) c2->Divide(2,1);
+    else if (numTriggerInputs == 3) c2->Divide(3,1);
+    else if (numTriggerInputs == 4) c2->Divide(2,2);
+    else if (numTriggerInputs == 5) c2->Divide(3,2);
+    else if (numTriggerInputs == 6) c2->Divide(3,2);
+    else if (numTriggerInputs > 6) c2->Divide(3,3);
+    else c2->Divide(5,3);
 
-    for (int i = 0; i < noColumns; i++){
+    TGraph *gr[numTriggerInputs];
+    TGraph *gr2[numTriggerInputs];
+    TGraph *grPlateau[numTriggerInputs];
+    TGraph *grMidpoint[numTriggerInputs];
+
+    for (int i = 0; i < numTriggerInputs; i++){
         c1->cd(i+1);
-   /*
+
         gr[i] = new TGraph (numThresholdValues,threshold,rate[i]);
         gr[i]->Draw("AL*");
 
         gr[i]->SetMarkerStyle(20);
         gr[i]->SetMarkerSize(0.5);
-        gr[i]->SetMarkerColor(kRed + 2);
-        std::string title = std::string("Channel ") + std::to_string(i+1) + std::string("; Threshold / V; Rate / Hz");
+        gr[i]->SetMarkerColor(kBlue + 1);
+        std::string title = std::string("TLU ") + std::to_string(i+1) + std::string("; Threshold / V; Rate / Hz");
         gr[i]->SetTitle(title.c_str());
-*/
-      /*  gr2[i] = new TGraph (numThresholdValues,threshold,firstDer[i]);
-        gr2[i]->Draw("AL*");*/
 
-        gr3[i] = new TGraph (numThresholdValues,threshold,secDer[i]);
-        gr3[i]->Draw("A*");
+        c2->cd(i+1);
+        gr2[i] = new TGraph (numThresholdValues,threshold,derivative[i]);
 
+        // Fit Gaussian to first derivative
+        TF1 *f = new TF1("f", "gaus", -1.3, -0.2);
+        gr2[i]->Fit(f, "RQ"); //R: fit only in predefined range Q:Quiet
+        double meanGaus = f->GetParameter(1);
+        double constGaus = f->GetParameter(0);
+        gr2[i]->Draw("AL*");
+        gr2[i]->SetMarkerStyle(20);
+        gr2[i]->SetMarkerSize(0.5);
+        gr2[i]->SetMarkerColor(kBlue + 1);
+        std::string titleDerivative = std::string("TLU ") + std::to_string(i+1) + std::string("; Threshold / V; a.U.");
+        gr[i]->SetTitle(titleDerivative.c_str());
+
+        // Find Plateau
+        grPlateau[i] = new TGraph();
+        double coefficient = 0.2;
+
+        //Make sure at least one Plateau point is found, otherwise: lower condition
+        while ((grPlateau[i]->GetN() == 0) & (coefficient <= 1)){
+            int k = 0;
+            for (int j = 0; j < numThresholdValues; j++){
+                if ((threshold[j] > meanGaus) & (derivative[i][j] <= coefficient * constGaus)){
+                    grPlateau[i]->SetPoint(k, threshold[j], rate[i][j]);
+                    k++;
+                }
+
+            }
+            coefficient +=0.05;
+        }
+
+        // Find Midpoint of Plateau
+        grMidpoint[i] = new TGraph();
+        int lenPlateau = grPlateau[i]->GetN();
+        int indexMidpoint = (lenPlateau + 1*lenPlateau%2)/2 - 1;
+        grMidpoint[i]->SetPoint(0, grPlateau[i]->GetX()[indexMidpoint], grPlateau[i]->GetY()[indexMidpoint]);
+
+        // Plot Plateau and Midpoint
+        c1->cd(i+1);
+        grPlateau[i]->Draw("*");
+        grPlateau[i]->SetMarkerStyle(20);
+        grPlateau[i]->SetMarkerSize(1);
+        grPlateau[i]->SetMarkerColor(kRed + 1);
+        grMidpoint[i]->Draw("*");
+        grMidpoint[i]->SetMarkerStyle(20);
+        grMidpoint[i]->SetMarkerSize(1);
+        grMidpoint[i]->SetMarkerColor(kGreen + 1);
+        grMidpoint[i]->SetTitle("Optimal Threshold");
+
+
+        //Plot legend
+        auto legend = new TLegend(0.1,0.8,0.58,0.9);
+        std::string midPointString = std::to_string(grMidpoint[i]->GetX()[0]);
+        midPointString.erase(midPointString.begin()+6, midPointString.end()); //limit number of values after comma
+        std::string labelMidpoint = std::string("Optimal Threshold:  ") + midPointString + std::string(" V");
+        legend->AddEntry(grMidpoint[i],labelMidpoint.c_str(),"p");
+        legend->Draw();
+
+        optimalThreshold[i] = grMidpoint[i]->GetX()[0];
     }
-
-
-    //    c1->SaveAs();
 
     c1->Update();
     c1->Modified();
+    c2->Update();
+    c2->Modified();
+    std::cout << "Enter something to continue" << std::endl;
+    int k;
+    std::cin >> k;
 
-    myApp->Run();
+    //myApp->Run();
+    //myApp->Terminate();
 
 
+    return optimalThreshold;
 }
+
 
 
 int main(int /*argc*/, char **argv) {
@@ -342,7 +392,7 @@ int main(int /*argc*/, char **argv) {
     eudaq::Option<double> volt(op, "v", "pmtvoltage", 0.9, "double", "PMT voltage [V]");
     eudaq::Option<int> acqtime(op, "t", "acquisitiontime", 10, "int", "acquisition time");
     eudaq::Option<std::string> name(op, "f", "filename", "output", "string", "filename");
-    eudaq::Option<std::string> con(op, "c", "connectionmap", "110000", "string", "connection map");
+    eudaq::Option<std::string> con(op, "c", "connectionmap", "111100", "string", "connection map");
 
     try{
         op.Parse(argv);
@@ -350,7 +400,6 @@ int main(int /*argc*/, char **argv) {
     catch (...) {
         return op.HandleMainException();
     }
-
 
     // Threshold in [-1.3V,=1.3V] with 40e-6V presision
     double thresholdMin = thrMin.Value();
@@ -405,7 +454,6 @@ int main(int /*argc*/, char **argv) {
         // JUST FOR TEST
         for (int i = 0; i<9; i++){
             double j = i+1;
-            //std::cout << rates[i][0]
             rates[i] = {exp(j),2*exp(j),3*exp(j),4*exp(j)};
         }
     }
@@ -438,8 +486,15 @@ int main(int /*argc*/, char **argv) {
 
     outFile.close();
 
-    myTlu.PlotMultiple(numThresholdValues, numTriggerInputs, filename);
+    std::vector<double> optimalThresholds;
+    optimalThresholds = myTlu.GetOptimalThreshold(numThresholdValues, numTriggerInputs, filename);
 
+    std::cout << "___________________" << std::endl;
+    std::cout << "Optimal Thresholds" << std::endl;
+    for (int i = 0; i < numTriggerInputs; i++){
+        std::cout << "TLU " << i+1 << ":   " << optimalThresholds[i]<< " V" << std::endl;
+    }
+    std::cout << "___________________" << std::endl;
 
 
     return 1;
