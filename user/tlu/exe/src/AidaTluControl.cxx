@@ -118,12 +118,13 @@ void AidaTluControl::DoStartUp(){
 
 
     // Initialize the Si5345 clock chip using pre-generated file
-    //    std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
-    //    int clkres;
-    //    clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
-    //    if (clkres == -1){
-    //        std::cout << "TLU: clock configuration failed." << std::endl;
-    //    }
+    //std::string defaultCfgFile= "file:///opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/fmctlu_clock_config.txt";
+    std::string defaultCfgFile= "/opt/eudaq2/user/eudet/misc/hw_conf/aida_tlu/aida_tlu_clk_config.txt";
+       int clkres;
+        clkres= m_tlu->InitializeClkChip( defaultCfgFile, m_verbose  );
+        if (clkres == -1){
+            std::cout << "TLU: clock configuration failed." << std::endl;
+        }
 
     // Set trigger stretch
 
@@ -154,7 +155,7 @@ void AidaTluControl::DoStartUp(){
 
     m_tlu->enableClkLEMO(true, m_verbose);
 
-    m_tlu->SetEnableRecordData((uint32_t)1);
+    m_tlu->SetEnableRecordData(0x0);
     m_tlu->GetEventFifoCSR();
     m_tlu->GetEventFifoFillLevel();
 
@@ -261,10 +262,10 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
     // Open File with data and write them into arrays
     std::ifstream infile;
     // TODO: Remove hard code
-    std::string filename_ = "test_few.txt";
-    infile.open(filename_);
+    // std::string filename_ = "test_few.txt";
+    infile.open(filename + ".txt");
     std::string line;
-    int skiplines = 2;
+    int skiplines = 6;
     int lineCounter = 0;
 
     Double_t threshold[numThresholdValues];
@@ -282,6 +283,8 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
                 for (int i = 0; i < numTriggerInputs + 1; i++){
                     std::string val;
                     lineS >> val;
+		    std::cout << i <<"\t" <<val<< std::endl;
+		    if(val=="") continue;
                     if (i == 0){
                         threshold[lineCounter - skiplines] = std::stod(val);
                     }
@@ -318,7 +321,7 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
     //    c1->SetRightMargin(0.09);
     //    c1->SetLeftMargin(0.1);
     //    c1->SetBottomMargin(0.15);
-
+    //c1->Divide(numTriggerInputs%3+1,numTriggerInputs/3+1);
     if (numTriggerInputs == 1) c1->Divide(1,1);
     else if (numTriggerInputs == 2) c1->Divide(2,1);
     else if (numTriggerInputs == 3) c1->Divide(3,1);
@@ -489,6 +492,7 @@ void AidaTluControl::PlotTrigger(std::string filename){
                     for (int i = 0; i < numTriggerInputs + 3; i++){
                         std::string val;
                         lineS >> val;
+			if(val=="") continue;
                         if (i == 0){
                             threshold[channel][lineCounter - skiplines] = std::stod(val);
                         }
