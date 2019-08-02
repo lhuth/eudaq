@@ -261,12 +261,12 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
 
     // Open File with data and write them into arrays
     std::ifstream infile;
-    // TODO: Remove hard code
-    // std::string filename_ = "test_few.txt";
     infile.open(filename + ".txt");
     std::string line;
     int skiplines = 6;
     int lineCounter = 0;
+    std::cout << "numThresh  " <<numThresholdValues << std::endl;
+    std::cout << "numTrigg  " <<numTriggerInputs << std::endl;
 
     Double_t threshold[numThresholdValues];
     Double_t rate[numTriggerInputs][numThresholdValues];
@@ -283,7 +283,7 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
                 for (int i = 0; i < numTriggerInputs + 1; i++){
                     std::string val;
                     lineS >> val;
-		    std::cout << i <<"\t" <<val<< std::endl;
+            //std::cout << i <<"\t" <<val<< std::endl;
 		    if(val=="") continue;
                     if (i == 0){
                         threshold[lineCounter - skiplines] = std::stod(val);
@@ -303,10 +303,12 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
     Double_t derivative[numTriggerInputs][numThresholdValues];
     for (int i = 0; i < numTriggerInputs; i++){
         for (int j = 0; j < numThresholdValues - 1; j++){
-            derivative[i][j] =  rate[i][j] - rate[i][j+1];
+            derivative[i][j] =  rate[i][j+1] - rate[i][j];
         }
         derivative[i][numThresholdValues-1] = derivative[i][numThresholdValues-2]; //extrapolate last point
     }
+
+
 
     //Plot Data and determine optimum
 
@@ -344,6 +346,8 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
     TGraph *gr2[numTriggerInputs];
     TGraph *grPlateau[numTriggerInputs];
     TGraph *grMidpoint[numTriggerInputs];
+
+
 
 
 
@@ -391,53 +395,62 @@ std::vector<std::vector<double>> AidaTluControl::GetOptimalThreshold(std::string
             coefficient +=0.05;
         }
 
-        // Find Midpoint of Plateau
-        grMidpoint[i] = new TGraph();
-        int lenPlateau = grPlateau[i]->GetN();
-        int indexMidpoint = (lenPlateau + 1*lenPlateau%2)/2 - 1;
-        grMidpoint[i]->SetPoint(0, grPlateau[i]->GetX()[indexMidpoint], grPlateau[i]->GetY()[indexMidpoint]);
-
-        std::cout << ":::::::::::::::::::::::::::::::::::::" << std::endl;
-        for (int j = 0; j < lenPlateau; j++){
-            std::cout << grPlateau[i]->GetX()[j] << std::endl;
+        if(grPlateau[i]->GetN() == 0){
+            std::cout << "No Plateau could be found for PMT " << i+1 << std::endl;
         }
-        std::cout << ":::::::::::::::::::::::::::::::::::::" << std::endl;
 
-
-        if (lenPlateau < 3){
-            double diff = gr[i]->GetX()[1] - gr[i]->GetX()[0];
-            thresholdMinOpt[i] = grPlateau[i]->GetX()[indexMidpoint] - diff;
-            thresholdMaxOpt[i] = grPlateau[i]->GetX()[indexMidpoint] + diff;
-        }
         else{
-            thresholdMinOpt[i] = grPlateau[i]->GetX()[0];
-            thresholdMaxOpt[i] = grPlateau[i]->GetX()[lenPlateau - 1];
+            // Find Midpoint of Plateau
+            grMidpoint[i] = new TGraph();
+            int lenPlateau = grPlateau[i]->GetN();
+            int indexMidpoint = (lenPlateau + 1*lenPlateau%2)/2 - 1;
+            std::cout << "index mid   " << indexMidpoint << std::endl;
+            std::cout << "len plateau   " << lenPlateau << std::endl;
+            grMidpoint[i]->SetPoint(0, grPlateau[i]->GetX()[indexMidpoint], grPlateau[i]->GetY()[indexMidpoint]);
+
+            std::cout << ":::::::::::::::::::::::::::::::::::::" << std::endl;
+            for (int j = 0; j < lenPlateau; j++){
+                std::cout << grPlateau[i]->GetX()[j] << std::endl;
+            }
+            std::cout << ":::::::::::::::::::::::::::::::::::::" << std::endl;
+
+
+            if (lenPlateau < 3){
+                double diff = gr[i]->GetX()[1] - gr[i]->GetX()[0];
+                thresholdMinOpt[i] = grPlateau[i]->GetX()[indexMidpoint] - diff;
+                thresholdMaxOpt[i] = grPlateau[i]->GetX()[indexMidpoint] + diff;
+            }
+            else{
+                thresholdMinOpt[i] = grPlateau[i]->GetX()[0];
+                thresholdMaxOpt[i] = grPlateau[i]->GetX()[lenPlateau - 1];
+            }
+
+
+
+            // Plot Plateau and Midpoint
+            c1->cd(i+1);
+            grPlateau[i]->Draw("*");
+            grPlateau[i]->SetMarkerStyle(20);
+            grPlateau[i]->SetMarkerSize(1);
+            grPlateau[i]->SetMarkerColor(kRed + 1);
+            grMidpoint[i]->Draw("*");
+            grMidpoint[i]->SetMarkerStyle(20);
+            grMidpoint[i]->SetMarkerSize(1);
+            grMidpoint[i]->SetMarkerColor(kGreen + 1);
+            grMidpoint[i]->SetTitle("Optimal Threshold");
+
+
+            //Plot legend
+            auto legend = new TLegend(0.1,0.8,0.58,0.9);
+            std::string midPointString = std::to_string(grMidpoint[i]->GetX()[0]);
+            midPointString.erase(midPointString.begin()+6, midPointString.end()); //limit number of values after comma
+            std::string labelMidpoint = std::string("Optimal Threshold:  ") + midPointString + std::string(" V");
+            legend->AddEntry(grMidpoint[i],labelMidpoint.c_str(),"p");
+            legend->Draw();
+
+            optimalThreshold[i] = grMidpoint[i]->GetX()[0];
         }
 
-
-
-        // Plot Plateau and Midpoint
-        c1->cd(i+1);
-        grPlateau[i]->Draw("*");
-        grPlateau[i]->SetMarkerStyle(20);
-        grPlateau[i]->SetMarkerSize(1);
-        grPlateau[i]->SetMarkerColor(kRed + 1);
-        grMidpoint[i]->Draw("*");
-        grMidpoint[i]->SetMarkerStyle(20);
-        grMidpoint[i]->SetMarkerSize(1);
-        grMidpoint[i]->SetMarkerColor(kGreen + 1);
-        grMidpoint[i]->SetTitle("Optimal Threshold");
-
-
-        //Plot legend
-        auto legend = new TLegend(0.1,0.8,0.58,0.9);
-        std::string midPointString = std::to_string(grMidpoint[i]->GetX()[0]);
-        midPointString.erase(midPointString.begin()+6, midPointString.end()); //limit number of values after comma
-        std::string labelMidpoint = std::string("Optimal Threshold:  ") + midPointString + std::string(" V");
-        legend->AddEntry(grMidpoint[i],labelMidpoint.c_str(),"p");
-        legend->Draw();
-
-        optimalThreshold[i] = grMidpoint[i]->GetX()[0];
     }
 
 
