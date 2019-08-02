@@ -41,7 +41,7 @@ public:
     void DoStartUp();
     void SetPMTVoltage(double voltage);
     void SetTLUThreshold(double threshold);
-    void SetTLUThreshold(std::vector<double> threshold, std::vector<bool> connection);
+    void SetTLUThreshold(std::vector<double> threshold, std::vector<bool> connection, std::string mode);
     std::vector<std::vector<double> > GetOptimalThreshold(std::string filename);
     void PlotTrigger(std::string filename);
     std::vector<double> MeasureRate(std::vector<bool> connection);
@@ -175,32 +175,82 @@ void AidaTluControl::SetTLUThreshold(double val){
 }
 
 // Set TLU threshold (individual values and only connected channels)
-void AidaTluControl::SetTLUThreshold(std::vector<double> val, std::vector<bool> connection){
+void AidaTluControl::SetTLUThreshold(std::vector<double> val, std::vector<bool> connection, std::string mode){
+// mode first: Writes voltage only to first connected
     int i = 0;
+    bool done = false;
 
-    if (connection[0]) {
-        m_tlu->SetThresholdValue(0, float(val[i]) , m_verbose);
-        i++;
+    if (connection[0] & (!done)) {
+        if (mode.compare("second") != 0) {
+            m_tlu->SetThresholdValue(0, float(val[i]) , m_verbose);
+            i++;
+        }
+        if (mode.compare("first") == 0){
+            done = true;
+        }
+        else if (mode.compare("second") == 0){
+            mode = "first";
+        }
     }
-    if (connection[1]) {
-        m_tlu->SetThresholdValue(1, float(val[i]) , m_verbose);
-        i++;
+    if (connection[1] & (!done)) {
+        if (mode.compare("second") != 0) {
+            m_tlu->SetThresholdValue(1, float(val[i]) , m_verbose);
+            i++;
+        }
+        if (mode.compare("first") == 0){
+            done = true;
+        }
+        else if (mode.compare("second") == 0){
+            mode = "first";
+        }
     }
-    if (connection[2]) {
-        m_tlu->SetThresholdValue(2, float(val[i]) , m_verbose);
-        i++;
+    if (connection[2]& (!done)) {
+        if (mode.compare("second") != 0) {
+            m_tlu->SetThresholdValue(2, float(val[i]) , m_verbose);
+            i++;
+        }
+        if (mode.compare("first") == 0){
+            done = true;
+        }
+        else if (mode.compare("second") == 0){
+            mode = "first";
+        }
     }
-    if (connection[3]) {
-        m_tlu->SetThresholdValue(3, float(val[i]) , m_verbose);
-        i++;
+    if (connection[3]& (!done)) {
+        if (mode.compare("second") != 0) {
+            m_tlu->SetThresholdValue(3, float(val[i]) , m_verbose);
+            i++;
+        }
+        if (mode.compare("first") == 0){
+            done = true;
+        }
+        else if (mode.compare("second") == 0){
+            mode = "first";
+        }
     }
-    if (connection[4]) {
-        m_tlu->SetThresholdValue(4, float(val[i]) , m_verbose);
-        i++;
+    if (connection[4]& (!done)) {
+        if (mode.compare("second") != 0) {
+            m_tlu->SetThresholdValue(4, float(val[i]) , m_verbose);
+            i++;
+        }
+        if (mode.compare("first") == 0){
+            done = true;
+        }
+        else if (mode.compare("second") == 0){
+            mode = "first";
+        }
     }
-    if (connection[5]) {
-        m_tlu->SetThresholdValue(5, float(val[i]) , m_verbose);
-        i++;
+    if (connection[5]& (!done)) {
+        if (mode.compare("second") != 0) {
+            m_tlu->SetThresholdValue(5, float(val[i]) , m_verbose);
+            i++;
+        }
+        if (mode.compare("first") == 0){
+            done = true;
+        }
+        else if (mode.compare("second") == 0){
+            mode = "first";
+        }
     }
 
 }
@@ -217,8 +267,6 @@ std::vector<double> AidaTluControl::MeasureRate(std::vector<bool> connectionBool
     std::this_thread::sleep_for (std::chrono::seconds(1));
     m_tlu->ResetCounters();
     m_tlu->ResetSerdes();
-
-
 
     m_tlu->SetRunActive(1, 1); // reset internal counters
     m_starttime = m_tlu->GetCurrentTimestamp()*25;
@@ -679,6 +727,9 @@ int main(int /*argc*/, char **argv) {
         }
     }
 
+    if(numTriggerInputs < 2) std::cout << "CAUTION: number of TLU inputs is smaller than 2! Correction for beam fluctuation is not possible."<< std::endl;
+
+
     for (int i = 0; i < 6; i++){
         std::cout << connectionBool[i]<< std::endl;
     }
@@ -699,6 +750,10 @@ int main(int /*argc*/, char **argv) {
     std::vector<std::vector<double>> rates(numThresholdValues, std::vector<double>(numTriggerInputs + 2));
     bool tluConnected = tluOn.Value();
 
+    // Define standard parameters for reference channel:
+    //double standardVoltage = 0.8;
+    std::vector<double> standardThreshold = {-0.04};
+
 
     /////////////////////////////////////////////////////////////////
     // Determine optimal Threshold values
@@ -706,10 +761,33 @@ int main(int /*argc*/, char **argv) {
 
     if(tluConnected){
         myTlu.DoStartUp();
+        double referenceValFirst = 1.;
+        double referenceValSecond = 1.;
         for (int i = 0; i < numThresholdValues; i++){
             myTlu.SetPMTVoltage(voltage);
             myTlu.SetTLUThreshold(thresholds[i]);
+            myTlu.SetTLUThreshold(standardThreshold, connectionBool, "first");
             rates[i] = myTlu.MeasureRate(connectionBool);
+            if(i == 0) {
+                if (rates[i][0] != 0) referenceValFirst = rates[i][0];
+                else std::cout << "First  Rate 0! Correction will not work properly!" << std::endl;
+            }
+
+            for (int j = 0; j < numTriggerInputs; j++){
+                rates[i][j] *= rates[i][0] / referenceValFirst;
+                std::cout << "Correcting all values by "<< rates[i][0] / referenceValFirst<<std::endl;
+            }
+
+            // Repeat Measurement for first input, now the second input is constant
+            myTlu.SetTLUThreshold(thresholds[i]);
+            myTlu.SetTLUThreshold(standardThreshold, connectionBool, "second");
+            rates[i][0] = myTlu.MeasureRate(connectionBool)[0];
+            if(i == 0) {
+                if (rates[i][1] != 0) referenceValSecond = rates[i][1];
+                else std::cout << "First  Rate 0! Correction will not work properly!" << std::endl;
+            }
+            rates[i][0] *= rates[i][1] / referenceValSecond;
+            std::cout << "Correcting first value by "<< rates[i][1] / referenceValSecond<<std::endl;
         }
     }
 
@@ -763,7 +841,7 @@ int main(int /*argc*/, char **argv) {
             for (int step = 0; step < numStepsTrigger; step++){
                 varThresholds[channelNo] = thresholdsTrigger[channelNo][step];
                 myTlu.SetPMTVoltage(voltage);
-                myTlu.SetTLUThreshold(varThresholds, connectionBool);
+                myTlu.SetTLUThreshold(varThresholds, connectionBool, "normal");
                 ratesTrigger[channelNo][step] = myTlu.MeasureRate(connectionBool);
             }
         }
