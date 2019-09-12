@@ -8,12 +8,12 @@
 using std::cout;
 using std::endl;
 RunControlGUI::RunControlGUI()
-  : QMainWindow(0, 0),
+  : QMainWindow(nullptr, nullptr),
     m_display_col(0),
+    m_display_row(0),
     m_scan_active(false),
     m_scan_interrupt_received(false),
     m_save_config_at_run_start(true),
-    m_display_row(0),
     m_config_at_run_path("")
 {
      m_map_label_str = {{"RUN", "Run Number"}};
@@ -162,7 +162,7 @@ void RunControlGUI::on_btnStart_clicked(){
   QString qs_next_run = txtNextRunNumber->text();
   if(!qs_next_run.isEmpty()){
     bool succ;
-    uint32_t run_n = qs_next_run.toInt(&succ);
+    uint32_t run_n = qs_next_run.toUInt(&succ);
     if(succ){
       m_rc->SetRunN(run_n);
     }
@@ -252,7 +252,7 @@ eudaq::Status::State RunControlGUI::updateInfos(){
         if(!conn_status.second)
       continue;
         auto state_conn = conn_status.second->GetState();
-        state_conn < state ? state = eudaq::Status::State(state_conn) : state = state ;
+        state_conn < state ? state = eudaq::Status::State(state_conn) : state;
         m_model_conns.SetStatus(conn_status.first, conn_status.second);
       }
     }
@@ -266,8 +266,8 @@ eudaq::Status::State RunControlGUI::updateInfos(){
     btnConfig->setEnabled((state == eudaq::Status::STATE_UNCONF ||
                state == eudaq::Status::STATE_CONF ||
                state == eudaq::Status::STATE_STOPPED)&& confLoaded);
-    btnLoadInit->setEnabled(state != eudaq::Status::STATE_RUNNING || state != eudaq::Status::STATE_STOPPED);
-    btnLoadConf->setEnabled(state != eudaq::Status::STATE_RUNNING || state != eudaq::Status::STATE_STOPPED);
+    btnLoadInit->setEnabled(state != eudaq::Status::STATE_RUNNING && state != eudaq::Status::STATE_STOPPED);
+    btnLoadConf->setEnabled(state != eudaq::Status::STATE_RUNNING && state != eudaq::Status::STATE_STOPPED);
     btnStart->setEnabled(state == eudaq::Status::STATE_CONF || state == eudaq::Status::STATE_STOPPED);
     btnStop->setEnabled(state == eudaq::Status::STATE_RUNNING && !m_scan_active);
     btnReset->setEnabled(state != eudaq::Status::STATE_RUNNING);
@@ -395,7 +395,7 @@ bool RunControlGUI::loadInitFile() {
   std::string settings = txtInitFileName->text().toStdString();
   QFileInfo check_file(txtInitFileName->text());
   if(!check_file.exists() || !check_file.isFile()){
-    QMessageBox::warning(NULL, "ERROR", "Init file does not exist.");
+    QMessageBox::warning(nullptr, "ERROR", "Init file does not exist.");
     return false;
   }
   if(m_rc){
@@ -408,7 +408,7 @@ bool RunControlGUI::loadConfigFile() {
   std::string settings = txtConfigFileName->text().toStdString();
   QFileInfo check_file(txtConfigFileName->text());
   if(!check_file.exists() || !check_file.isFile()){
-    QMessageBox::warning(NULL, "ERROR", "Config file does not exist.");
+    QMessageBox::warning(nullptr, "ERROR", "Config file does not exist.");
     return false;
   }
   if(m_rc){
@@ -460,7 +460,7 @@ bool RunControlGUI::addToGrid(const QString & objectName, QString displayedName)
     lblvalue->setText("val_"+objectName);
 
     int colPos = 0, rowPos = 0;
-    if( 2* (m_str_label.size()+1) < grpGrid->rowCount() * grpGrid->columnCount() ) {
+    if( 2* (static_cast<int>(m_str_label.size())+1) < grpGrid->rowCount() * grpGrid->columnCount() ) {
         colPos = m_display_col;
         rowPos = m_display_row;
         if (++m_display_col > 1) {
@@ -518,10 +518,10 @@ bool RunControlGUI::updateStatusDisplay() {
 bool RunControlGUI::addAdditionalStatus(std::string info) {
     std::vector<std::string> results = eudaq::splitString(info,',');
     if(results.size()%2!=0) {
-        QMessageBox::warning(NULL,"ERROR","Additional Status Display inputs are not correctly formatted - please check");
+        QMessageBox::warning(nullptr,"ERROR","Additional Status Display inputs are not correctly formatted - please check");
        return false;
     } else {
-        for(auto c = 0; c < results.size();c+=2) {
+        for(unsigned c = 0; c < results.size();c+=2) {
             // check if the connection exists, otherwise do not display
             auto it = m_map_conn_status_last.begin();
             bool found = false;
@@ -533,7 +533,7 @@ bool RunControlGUI::addAdditionalStatus(std::string info) {
                 it++;
             }
             if(!found) {
-                QMessageBox::warning(NULL,"ERROR",QString::fromStdString("Element \""+results.at(c)+ "\" is not connected"));
+                QMessageBox::warning(nullptr,"ERROR",QString::fromStdString("Element \""+results.at(c)+ "\" is not connected"));
                 return false;
             }
         }
@@ -545,7 +545,7 @@ bool RunControlGUI::checkFile(QString file, QString usecase)
 {
     QFileInfo check_file(file);
     if(!check_file.exists() || !check_file.isFile()){
-      QMessageBox::warning(NULL, "ERROR",QString(usecase + " file does not exist."));
+      QMessageBox::warning(nullptr, "ERROR",QString(usecase + " file does not exist."));
       return false;
     }
     else
@@ -580,7 +580,7 @@ void RunControlGUI::on_btnStartScan_clicked()
 {
    if(m_scan_active == true){
        QMessageBox::StandardButton reply;
-       reply = QMessageBox::question(NULL,"Interrupt Scan","Do you want to stop immediately?\n Hitting no will stop after finishing the current step",
+       reply = QMessageBox::question(nullptr,"Interrupt Scan","Do you want to stop immediately?\n Hitting no will stop after finishing the current step",
                                      QMessageBox::Yes|QMessageBox::No|QMessageBox::Abort);
        if(reply==QMessageBox::Yes) {
            m_scan_active = false;
@@ -693,7 +693,7 @@ bool RunControlGUI::allConnectionsInState(eudaq::Status::State state){
             return false;
 
         }
-        if((int)state_conn != (int)state)
+        if(static_cast<int>(state_conn) != static_cast<int>(state))
             return false;
     }
     return true;
@@ -773,7 +773,7 @@ void RunControlGUI::updateProgressBar(){
     else
         scanProgress += getEventsCurrent()/double(m_scan.eventsPerStep())*100./std::max(1,m_scan.nSteps());
     }
-    progressBar_scan->setValue(scanProgress);
+    progressBar_scan->setValue(static_cast<int>(scanProgress));
 
 }
 
