@@ -36,7 +36,8 @@ Buttons and line edits to control the DAQ. Inactive buttons are greyed out:
     - Line edit for the currently set scan configuration file, which can be changed by simply entering the desired filename (NB: has to have the end `.scan`)
     - Load-Button: Opens Dialog to browse the system searching for a `*.scan` file, which is loaded to the line-edit
     - StartScan-Button: Starts the scan and allows for an interruption at any time.
-  
+    - LogConfig-CheckBox: Uncheck, if you do not want to store the current
+    config file at run start.  
 #### Connections 
 All connected components are shown in a table located in the bottom part. For each component, the following information is displayed:
   - type: Can be Producer, DataCollector, Monitor
