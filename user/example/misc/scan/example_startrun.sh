@@ -2,7 +2,7 @@
 BINPATH=../../../../bin
 #$BINPATH/euRun &
 $BINPATH/euRun -n Ex0RunControl &
-sleep 1
+sleep 2
 $BINPATH/euLog &
 sleep 1
 $BINPATH/euCliMonitor -n Ex0Monitor -t my_mon & 

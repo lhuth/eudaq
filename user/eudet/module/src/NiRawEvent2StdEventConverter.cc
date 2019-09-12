@@ -28,7 +28,7 @@ bool NiRawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::Standar
     return false;
 
     // Identify the detetor type
-  d2->SetDetectorType("MIMIOSA26");
+  d2->SetDetectorType("MIMOSA26");
 
   if(!d2->IsFlagPacket()){
     d2->SetFlag(d1->GetFlag());
@@ -149,6 +149,8 @@ void NiRawEvent2StdEventConverter::DecodeFrame(eudaq::StandardPlane& plane, cons
       uint16_t num = v & 3;
       for (uint16_t j = 0; j < num + 1; ++j) {
 	plane.PushPixel(column + j, row, 1, pivot, fm_n);
+//    if(column+j>1152 || row>526)
+//        std::cout << "WRONG SIZE: " << (column + j) <<", "<<row <<std::endl;
       }
     }
   }

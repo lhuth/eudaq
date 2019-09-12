@@ -14,8 +14,9 @@ RunControlGUI::RunControlGUI()
     m_scan_interrupt_received(false),
     m_save_config_at_run_start(true),
     m_display_row(0),
-    m_config_at_run_path(""){
-    m_map_label_str = {{"RUN", "Run Number"}};
+    m_config_at_run_path("")
+{
+     m_map_label_str = {{"RUN", "Run Number"}};
     qRegisterMetaType<QModelIndex>("QModelIndex");
     setupUi(this);
 
@@ -735,12 +736,26 @@ int RunControlGUI::getEventsCurrent(){
     return -1;
 }
 
-void RunControlGUI::store_config()
-{
+void RunControlGUI::store_config() {
     std::string configFile = txtConfigFileName->text().toStdString();
-    std::string command = "cp "+configFile+" "+m_config_at_run_path+"run_"+std::to_string(m_rc->GetRunN())+".txt";
-    std::cout << "fucking runnumber that we are using: " << command <<std::endl;
+    std::string runfile = m_config_at_run_path+"run_"+std::to_string(m_rc->GetRunN())+".txt";
+
+    EUDAQ_USER(runfile);
+    std::fstream ofs;
+    ofs.open(runfile,std::ios::app);
+    if(!ofs.is_open()) {
+        EUDAQ_ERROR("Could not copy the config file to the desired location. Check \"config_log_path\" in the configure file");
+        return;
+    }
+
+    // we support unix and windows:
+    #if EUDAQ_PLATFORM_IS(WIN32)
+    std::string command = "copy "+configFile+" "+runfile;
     system(command.c_str());
+    #else
+    std::string command = "cp "+configFile+" "+runfile;
+    system(command.c_str());
+    #endif
 }
 
 void RunControlGUI::updateProgressBar(){
