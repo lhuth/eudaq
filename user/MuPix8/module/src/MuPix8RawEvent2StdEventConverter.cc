@@ -16,8 +16,8 @@ namespace{
 
 bool MuPix8RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const{
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
-  size_t nblocks= ev->NumBlocks();
   auto block_n_list = ev->GetBlockNumList();
+  auto dutType = conf->Get("sensor_id",8);
   for(auto &block_n: block_n_list){
     auto block =  ev->GetBlock(block_n);
     TelescopeFrame * tf = new TelescopeFrame();
@@ -26,10 +26,11 @@ bool MuPix8RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::Std
 
 
     eudaq::StandardPlane plane(block_n, "MuPixLike_DUT", "MuPixLike_DUT");
-    plane.SetSizeZS(128,200,tf->num_hits());
+
+    plane.SetSizeZS(512,512,tf->num_hits());
     for(uint i =0; i < tf->num_hits();++i)
     {
-        RawHit h = tf->get_hit(i,8);
+        RawHit h = tf->get_hit(i,dutType);
         plane.SetPixel(i,h.column(),h.row(),h.timestamp_raw());
     }
     d2->AddPlane(plane);
