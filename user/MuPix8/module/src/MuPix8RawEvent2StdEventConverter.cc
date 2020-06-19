@@ -6,7 +6,7 @@
 class MuPix8RawEvent2StdEventConverter: public eudaq::StdEventConverter{
 public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const override;
-  static const uint32_t m_id_factory = eudaq::cstr2hash("MuPix8");
+  static const uint32_t m_id_factory = eudaq::cstr2hash("ATLASPix");
 };
 
 namespace{
@@ -25,13 +25,13 @@ bool MuPix8RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::Std
         EUDAQ_ERROR("Cannot read TelescopeFrame");
 
 
-    eudaq::StandardPlane plane(block_n, "MuPixLike_DUT", "MuPixLike_DUT");
+    eudaq::StandardPlane plane(0, "atlaspix", "atlaspix");
 
     plane.SetSizeZS(512,512,tf->num_hits());
     for(uint i =0; i < tf->num_hits();++i)
     {
         RawHit h = tf->get_hit(i,dutType);
-        plane.SetPixel(i,h.column(),h.row(),h.timestamp_raw());
+        plane.SetPixel(0,h.column(),h.row(),d1->GetTimestampBegin()*1000);
     }
     d2->AddPlane(plane);
   }
