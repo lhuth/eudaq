@@ -20,22 +20,21 @@ bool MuPix8RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::Std
   auto dutType = conf->Get("sensor_id",8);
   auto dutname = conf->Get("detector","atlaspix");
 
-  auto count = 0;
   eudaq::StandardPlane plane(0, "atlaspix", "atlaspix");
-
+  d2->SetDetectorType("atlaspix");
   plane.SetSizeZS(512,512,100);
   for(auto &block_n: block_n_list){
     auto block =  ev->GetBlock(block_n);
-    TelescopeFrame * tf = new TelescopeFrame();
-    if(!tf->from_uint8_t(ev->GetBlock(block_n)))
+    TelescopeFrame tf;
+    if(!tf.from_uint8_t(ev->GetBlock(block_n)))
         EUDAQ_ERROR("Cannot read TelescopeFrame");
 
 
-    for(uint i =0; i < tf->num_hits();++i)
+    for(uint i =0; i < tf.num_hits();++i)
     {
-        RawHit h = tf->get_hit(i,dutType);
-        plane.PushPixel(h.column(),h.row(),h.tot(),d1->GetTimestampBegin()*1000);
-        count++;
+        RawHit h = tf.get_hit(i,dutType);
+        if(h.row()<381)
+            plane.PushPixel(h.column(),h.row(),1,d1->GetTimestampBegin()*1000);
     }
   }
   d2->AddPlane(plane);
