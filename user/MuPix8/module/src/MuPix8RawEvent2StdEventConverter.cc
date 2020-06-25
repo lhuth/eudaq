@@ -17,12 +17,11 @@ namespace{
 bool MuPix8RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const{
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
   auto block_n_list = ev->GetBlockNumList();
-  auto dutType = conf->Get("sensor_id",8);
+  auto dutType = conf->Get("sensor_id",66);
   auto dutname = conf->Get("detector","atlaspix");
 
-  eudaq::StandardPlane plane(0, "atlaspix", "atlaspix");
+  eudaq::StandardPlane plane(0, dutname, dutname);
   d2->SetDetectorType("atlaspix");
-  plane.SetSizeZS(512,512,100);
   for(auto &block_n: block_n_list){
     auto block =  ev->GetBlock(block_n);
     TelescopeFrame tf;
