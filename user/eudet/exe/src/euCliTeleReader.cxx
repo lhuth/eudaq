@@ -3,7 +3,7 @@
 #include "eudaq/StdEventConverter.hh"
 
 #include <iostream>
-
+using namespace std;
 int main(int /*argc*/, const char **argv) {
   eudaq::OptionParser op("EUDAQ Command Line FileReader", "2.1", 
           "EUDAQ FileReader modified for Mimosa/TLU");
@@ -34,7 +34,8 @@ int main(int /*argc*/, const char **argv) {
   eudaq::FileReaderUP reader;
   reader = eudaq::Factory<eudaq::FileReader>::MakeUnique(eudaq::str2hash(type_in), infile_path);
   uint32_t event_count = 0;
-
+ofstream myfile;
+  myfile.open ("dummy.txt");
   std::cout << "run,event,trigger,timestamp_low,timestamp_high,ni_trigger_number,ni_pivot_pixel" << std::endl;
   while(1){
     auto ev = reader->GetNextEvent();
@@ -72,7 +73,7 @@ int main(int /*argc*/, const char **argv) {
       in_range_tsn = true;
 
 
-    if((in_range_evn && in_range_tgn && in_range_tsn) && not_all_zero){
+    //if((in_range_evn && in_range_tgn && in_range_tsn) && not_all_zero){
       uint32_t run_number = ev->GetRunN();
       uint32_t event_number = ev->GetEventN();
       uint32_t trigger_number = ev->GetTriggerN();
@@ -85,25 +86,30 @@ int main(int /*argc*/, const char **argv) {
           if (sub_event->GetDescription() == "TluRawDataEvent") {
               ts_low = sub_event->GetTimestampBegin();
               ts_high = sub_event->GetTimestampEnd();
-          }
+	      myfile << sub_event->GetTimestampBegin() <<std::endl;
+	  }
           if (sub_event->GetDescription() == "NiRawDataEvent") {
               ni_trigger_number = sub_event->GetTriggerN();
               const std::vector<uint8_t> &data0 = sub_event->GetBlock(0);
               ni_pivot_pixel = eudaq::getlittleendian<uint16_t>(&data0[4]);
           }
       }
-      std::cout << run_number << "," 
+      if(sub_events.size()==0)
+	std::cout << "meah";
+      //
+      /*std::cout << run_number << "," 
           << event_number << "," 
           << trigger_number << "," 
           << ts_low << "," 
           << ts_high << "," 
           << ni_trigger_number << "," 
           << ni_pivot_pixel << std::endl; 
-    }
+      }*/
 
     event_count ++;
   }
   if(!csvout.Value())
     std::cout << "There are " << event_count << " Events" << std::endl;
+  myfile.close();
   return 0;
 }
