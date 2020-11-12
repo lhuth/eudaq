@@ -8,6 +8,7 @@ int main(int /*argc*/, const char **argv) {
   eudaq::OptionParser op("EUDAQ Command Line FileReader", "2.1", 
           "EUDAQ FileReader modified for Mimosa/TLU");
   eudaq::Option<std::string> file_input(op, "i", "input", "", "string", "input file");
+  eudaq::Option<std::string> file_output(op, "o", "output", "", "string", "output file");
   eudaq::Option<uint32_t> eventl(op, "e", "event", 0, "uint32_t", "event number low");
   eudaq::Option<uint32_t> eventh(op, "E", "eventhigh", 0, "uint32_t", "event number high");
   eudaq::Option<uint32_t> triggerl(op, "tg", "trigger", 0, "uint32_t", "trigger number low");
@@ -19,6 +20,7 @@ int main(int /*argc*/, const char **argv) {
   op.Parse(argv);
 
   std::string infile_path = file_input.Value();
+  std::string output = file_output.Value();
   std::string type_in = infile_path.substr(infile_path.find_last_of(".")+1);
   if(type_in=="raw")
     type_in = "native";
@@ -35,7 +37,7 @@ int main(int /*argc*/, const char **argv) {
   reader = eudaq::Factory<eudaq::FileReader>::MakeUnique(eudaq::str2hash(type_in), infile_path);
   uint32_t event_count = 0;
 ofstream myfile;
-  myfile.open ("dummy.txt");
+ myfile.open (output.c_str());
   std::cout << "run,event,trigger,timestamp_low,timestamp_high,ni_trigger_number,ni_pivot_pixel" << std::endl;
   while(1){
     auto ev = reader->GetNextEvent();
@@ -94,8 +96,12 @@ ofstream myfile;
               ni_pivot_pixel = eudaq::getlittleendian<uint16_t>(&data0[4]);
           }
       }
-      if(sub_events.size()==0)
-	std::cout << "meah";
+      if(sub_events.size()==0){
+	    ts_low = ev->GetTimestampBegin();
+              ts_high = ev->GetTimestampEnd();
+              myfile << ev->GetTimestampBegin() <<std::endl;
+}
+      //	std::cout << "meah";
       //
       /*std::cout << run_number << "," 
           << event_number << "," 
